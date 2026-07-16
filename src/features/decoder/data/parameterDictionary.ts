@@ -1,0 +1,107 @@
+export type ParameterCategory = 'identity' | 'sizing' | 'targeting' | 'timing' | 'hardware' | 'consent' | 'general'
+
+export const AD_PARAMETER_CATEGORY_MAP: Record<string, ParameterCategory> = {
+  pvsid: 'identity', correlator: 'identity', cookie: 'identity', gpic: 'identity', ppid: 'identity', eo_id_str: 'identity',
+  impl: 'sizing', prev_iu_szs: 'sizing', psz: 'sizing', msz: 'sizing', fws: 'sizing', ohw: 'sizing', frm: 'sizing', pgls: 'sizing', fsfs: 'sizing', rcs: 'sizing',
+  iu_parts: 'targeting', enc_prev_ius: 'targeting', ifi: 'targeting', dids: 'targeting', cust_params: 'targeting', prev_scp: 'targeting', adks: 'targeting',
+  dt: 'timing', dlt: 'timing', idt: 'timing',
+  biw: 'hardware', bih: 'hardware', scr_x: 'hardware', scr_y: 'hardware', u_h: 'hardware', u_w: 'hardware', u_ah: 'hardware', u_aw: 'hardware', u_cd: 'hardware', u_sd: 'hardware', u_tz: 'hardware', dmc: 'hardware', bc: 'hardware', uach: 'hardware', vis: 'hardware',
+  ucis: 'consent',
+  // CM360 / VAST Specific
+  dc_lat: 'consent', dc_rdid: 'identity', tag_for_child_directed_treatment: 'consent', tfua: 'consent',
+  dcmt: 'targeting', dc_vast: 'targeting', dc_vpaid: 'targeting', dc_osd: 'targeting', dc_frm: 'targeting',
+  dc_sdr: 'targeting', dc_sdkv: 'targeting', dc_sdki: 'targeting', dc_eid: 'targeting',
+  is_amp: 'targeting', u_so: 'hardware', ctv: 'hardware', vo: 'targeting', dc_adk: 'targeting',
+  dc_sdk_apis: 'targeting', dc_omid_p: 'targeting', sid: 'identity', htps: 'targeting',
+  ord: 'identity', afvsz: 'sizing', dc_rfl: 'targeting',
+}
+
+export interface ParameterDictionaryEntry {
+  name: string
+  desc: string
+}
+
+export const AD_PARAMETER_DICTIONARY: Record<string, ParameterDictionaryEntry> = {
+  pvsid: { name: 'Page View ID', desc: 'Unique identifier generated per page view.' },
+  correlator: { name: 'Correlator / Cache-Buster', desc: 'Random shared integer across ad slots on a page.' },
+  eid: { name: 'Experiment IDs', desc: 'Comma-separated A/B experiment codes.' },
+  output: { name: 'Output format', desc: 'Response wrapper schema, e.g. ldjh (JSON HTML).' },
+  gdfp_req: { name: 'Google DFP Request', desc: 'Marker for a GPT transaction (usually 1).' },
+  vrg: { name: 'GPT Library Version', desc: 'Release build stamp of the GPT engine.' },
+  ptt: { name: 'Placement Template Type', desc: 'Tag template layout config maps.' },
+  impl: { name: 'Implementation Style', desc: 'Frame boundary type: fif (Friendly) or ifr (Standard).' },
+  iu_parts: { name: 'Ad Unit Path Segments', desc: 'Nested GAM slot path nodes.' },
+  enc_prev_ius: { name: 'Encoded Parent Path Indices', desc: 'Reference arrays for parent slot directories.' },
+  prev_iu_szs: { name: 'Target Creative Sizes', desc: 'Requested dimensions for the targeting slot.' },
+  ifi: { name: 'Iframe Slot Position Index', desc: 'Ordinal slot request index.' },
+  dids: { name: 'Delimited Inventory Domain', desc: 'Directory level layout for targeting paths.' },
+  sfv: { name: 'SafeFrame Version', desc: 'SafeFrame implementation build version.' },
+  fsfs: { name: 'Full-screen Friendly Sizing', desc: 'Config for full screen/overlay sizes.' },
+  rcs: { name: 'Rendering Context Source', desc: 'Slot initial render properties.' },
+  cookie: { name: 'Server Tracking ID', desc: 'Doubleclick browser profile tokens.' },
+  gpic: { name: 'Global Personal ID Cookie', desc: 'Cross-domain cookie-less tracking token.' },
+  dt: { name: 'Initiation Timestamp', desc: 'Epoch ms when the ad call fired.' },
+  biw: { name: 'Browser Viewport Width', desc: 'Inner horizontal dimension of the viewport.' },
+  bih: { name: 'Browser Viewport Height', desc: 'Inner vertical dimension of the viewport.' },
+  scr_x: { name: 'Document Horizontal Scroll', desc: 'Horizontal scroll offset (px).' },
+  scr_y: { name: 'Document Vertical Scroll', desc: 'Vertical scroll offset (px).' },
+  ucis: { name: 'User Consent Signal', desc: 'Privacy consent framework flags.' },
+  u_h: { name: 'Monitor Display Height', desc: 'Total vertical resolution.' },
+  u_w: { name: 'Monitor Display Width', desc: 'Total horizontal resolution.' },
+  u_ah: { name: 'Available Monitor Height', desc: 'Screen height minus taskbars.' },
+  u_aw: { name: 'Available Monitor Width', desc: 'Screen width minus taskbars.' },
+  u_cd: { name: 'Color Palette Bit Depth', desc: 'Max bit depth per pixel.' },
+  u_sd: { name: 'Device Pixel Ratio (DPR)', desc: 'Logical-to-physical pixel scaling factor.' },
+  u_tz: { name: 'Browser Timezone Offset', desc: 'Offset from UTC in minutes.' },
+  dmc: { name: 'Device Capabilities', desc: 'Execution concurrency and rendering capability.' },
+  bc: { name: 'Browser Capability Bits', desc: 'Bitmask of browser feature support.' },
+  uach: { name: 'User Agent Client Hints', desc: 'Base64 array of browser/OS/architecture.' },
+  url: { name: 'Landing Page URL', desc: 'Source page where ad slots live.' },
+  ref: { name: 'Document Referrer Path', desc: 'Navigation path referring to landing page.' },
+  vis: { name: 'Page Visibility Code', desc: '1 = active visible, 0 = backgrounded.' },
+  psz: { name: 'Preferred Box Sizing', desc: 'Box sizing constraints for frames.' },
+  msz: { name: 'Max Box Sizing', desc: 'Layout frame size boundaries.' },
+  fws: { name: 'Fluid Width Sizing', desc: 'Responsive viewport fluid sizing flag.' },
+  dlt: { name: 'Navigation Latency Anchor', desc: 'Epoch ms of document launch start.' },
+  idt: { name: 'Execution Latency Metric', desc: 'Render time before ad request delivery (ms).' },
+  ppid: { name: 'Publisher-Provided ID', desc: 'Custom persistent user tracking token.' },
+  prev_scp: { name: 'Slot Pre-existing Params', desc: 'URL-encoded previous slot data.' },
+  cust_params: { name: 'Custom Targeting Parameters', desc: 'URL-encoded key-value targeting markers.' },
+  adks: { name: 'Slot Checksum Sequence', desc: 'Layout hash for duplicate detection.' },
+  frm: { name: 'Host Frame Configuration', desc: 'SafeFrame, Friendly, or standard iframe.' },
+  eo_id_str: { name: 'External Object Segment', desc: 'Encrypted audience tracking tokens.' },
+  // CM360 / VAST Specific
+  dc_lat: { name: 'Limit Ad Tracking', desc: 'Privacy flag indicating if user opted out of tracking.' },
+  dc_rdid: { name: 'Resettable Device ID', desc: 'IDFA or Android Advertising ID for mobile tracking.' },
+  tag_for_child_directed_treatment: { name: 'COPPA Child-Directed Treatment', desc: '1 indicates the request is subject to COPPA regulations.' },
+  tfua: { name: 'GDPR Under Age of Consent', desc: '1 indicates request is subject to child regulations under GDPR.' },
+  dcmt: { name: 'Document MIME Type', desc: 'MIME format of the return tag (e.g. text/xml for VAST, text/html).' },
+  dc_vast: { name: 'VAST Schema Version', desc: 'Requested VAST version (e.g., 3 or 4) for XML delivery.' },
+  dc_vpaid: { name: 'VPAID Support Status', desc: 'Indicates player support for VPAID interactive creatives.' },
+  dc_osd: { name: 'Open Measurement State', desc: 'Visibility and audit configuration metric (1/2).' },
+  dc_frm: { name: 'Frame Configuration Code', desc: 'Delivery environment context (e.g. 2 for friendly/nested iframe).' },
+  dc_sdr: { name: 'Secure Domain Rendering', desc: 'Flag indicating safe secure domain handling.' },
+  dc_sdkv: { name: 'Ad SDK Version', desc: 'Identifies the SDK build rendering the tag.' },
+  dc_sdki: { name: 'Ad SDK Index', desc: 'Internal reference key for the client SDK.' },
+  dc_eid: { name: 'DoubleClick Experiment IDs', desc: 'Active test/experiments running on the request.' },
+  unviewed_position_start: { name: 'Lazy Loading Flag', desc: '1 indicates the slot can defer load until visible.' },
+  is_amp: { name: 'AMP context flag', desc: '1 if requested from Accelerated Mobile Page context.' },
+  hl: { name: 'Language Setting', desc: 'User UI language setting (e.g. en).' },
+  u_so: { name: 'Device Orientation', desc: 'Device screen orientation (l for landscape, p for portrait).' },
+  ctv: { name: 'Connected TV Device', desc: '1 if request originated from a Smart TV or console.' },
+  vo: { name: 'Video Playback Option', desc: 'Video sound/autoplay capabilities (e.g. muted).' },
+  dc_adk: { name: 'Ad Key Hash', desc: 'Checksum for placement verification and tracking.' },
+  dc_sdk_apis: { name: 'Supported SDK APIs', desc: 'Supported framework APIs (e.g. MRAID, OMID).' },
+  dc_omid_p: { name: 'Open Measurement Partner', desc: 'Validates integration with visibility partners.' },
+  sid: { name: 'Session ID', desc: 'Unique session token for tracking current navigation path.' },
+  htps: { name: 'HTTPS Status Indicator', desc: '10 indicates the parent site is served over HTTPS.' },
+  ord: { name: 'Order / Cache Buster', desc: 'Timestamp or unique random value to bypass browser caching.' },
+  afvsz: { name: 'Allowed Video Sizes', desc: 'Comma-separated companion and creative sizes allowed.' },
+  dc_rfl: { name: 'Rendering Frame Location', desc: 'Details on where the frame was rendered in parent window.' },
+}
+
+export const DECODER_SAMPLE_TAG =
+  'https://securepubads.g.doubleclick.net/gampad/ads?pvsid=1627043137831426&correlator=3344104279317747&eid=95391588%2C31096727%2C676982996&output=ldjh&gdfp_req=1&vrg=202607070101&ptt=17&impl=fif&iu_parts=23171577%2Cexpedia.us_en%2Chotels%2Cresults%2CR1&enc_prev_ius=%2F0%2F1%2F2%2F3%2F4&prev_iu_szs=160x600&ifi=3&dids=%2F23171577%2Fexpedia.us_en%2Fhotels&sfv=1-0-45&fsfs=1&rcs=1&cookie=ID%3Dc6dde03a87cdc7ae%3AT%3D1774753846%3ART%3D1783925538%3AS%3DALNI_MaHT_ZvGSsJblQocFOfMFZUKNGNcQ&gpic=UID%3D000012329b2961d1%3AT%3D1774753846%3ART%3D1783925538%3AS%3DALNI_MbM_JTdg3tjKkOtRvQVjztAEpStjg&dt=1783925595670&adxs=1144&adys=84&biw=1407&bih=1134&scr_x=0&scr_y=0&ucis=2&u_h=1280&u_w=2048&u_ah=1255&u_aw=2048&u_cd=24&u_sd=1&u_tz=330&dmc=16&bc=31&uach=WyJtYWNPUyIsIjE1LjcuNyIsIng4NiIsIiIsIjE1MC4wLjc4NzEuNDYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90O0E9QnJhbmQiLCI4LjAuMC4wIl0sWyJDaHJvbWl1bSIsIjE1MC4wLjc4NzEuNDYiXSxbIkdvb2dsZSBDaHJvbWUiLCIxNTAuMC43ODcxLjQ2Il1dLDBd&url=https%3A%2F%2Fwww.expedia.com%2FHotel-Search%3Fdestination%3DLas%2520Palmas&ref=https%3A%2F%2Fwww.expedia.com%2FHotel-Search&vis=1&psz=0x-1&msz=160x-1&dlt=1783925522939&idt=12328&ppid=40774465-097c-418e-b117-a2de32001798&prev_scp=siteId%3D1%26locale%3Den_US%26pageName%3Dpage.Hotels.Search&cust_params=dc%3D166%26dcity%3D2117%26dp%3D180087%26dregion%3D6047134%26dsp%3D180087%26numadults%3D2%26nt%3D2%26ads%3D1%26sitePath%3Dexpedia&adks=2857623510&frm=20&eo_id_str=ID%3De5093905299636cf%3AT%3D1774753846'
+
+export const DECODER_CM360_SAMPLE_TAG =
+  'https://ad.doubleclick.net/ddm/pfadx/N997660.1355588DOUBLECLICK.COMB/B36340917.451942430;sz=0x0;dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;dcmt=text%2Fxml;dc_vast=3;dc_vpaid=0;dc_osd=2;dc_frm=2;vis=1;dc_sdr=1;dc_sdkv=h.3.776.0;dc_sdki=100000445;dc_eid=44752052%2C95322027%2C95331589%2C95332046%2C95351425;unviewed_position_start=1;is_amp=0;hl=en;uach=WyJtYWNPUyIsIjE1LjcuNyIsIng4NiIsIiIsIjE1MC4wLjc4NzEuMTE1IixudWxsLDAsbnVsbCwiNjQiLFtbIk5vdDtBPUJyYW5kIiwiOC4wLjAuMCJdLFsiQ2hyb21pdW0iLCIxNTAuMC43ODcxLjExNSJdLFsiR29vZ2xlIENocm9tZSIsIjE1MC4wLjc4NzEuMTE1Il1dLDBd;u_so=l;ctv=0;ptt=20;vo=0;dc_adk=3356353135;dc_sdk_apis=2%2C7%2C8;dc_omid_p=Google1%2Fh.3.776.0;sid=20CB5CBB-1A50-4608-9D1F-899D26298850;htps=10;eid=44752052%2C95322027%2C95331589%2C95332046%2C95351425;afvsz=200x200%2C250x250%2C300x250%2C336x280%2C450x50%2C468x60%2C480x70;ref=https%3A%2F%2Fdisplayvideo.google.com%2F;url=https%3A%2F%2Fdisplayvideo.google.com%2F;dt=1784129185726;dc_rfl=1,https%3A%2F%2Fdisplayvideo.google.com%2F$0;ord=%5Btimestamp%5D'
