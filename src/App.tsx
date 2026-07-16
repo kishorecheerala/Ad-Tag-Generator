@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -6,11 +6,18 @@ import { Toaster } from '@/components/ui/sonner'
 import { useTheme } from '@/lib/theme'
 import { useUiStore, type AppTab } from '@/stores/uiStore'
 import { useDecoderStore } from '@/features/decoder/store'
+import { useTagSettingsStore } from '@/features/tag-settings/store'
 import { TagSettingsTab } from '@/features/tag-settings/TagSettingsTab'
 import { DecoderTab } from '@/features/decoder/DecoderTab'
 import { EncoderTab } from '@/features/encoder/EncoderTab'
-import { CreativePreviewTab } from '@/features/creative-preview/CreativePreviewTab'
 import { TestPageTab } from '@/features/test-page/TestPageTab'
+
+// CodeMirror + its language packages are the single heaviest dependency in
+// the app and are only needed once someone visits Creative Preview — code
+// split it out of the main bundle instead of loading it on every page view.
+const CreativePreviewTab = lazy(() =>
+  import('@/features/creative-preview/CreativePreviewTab').then((m) => ({ default: m.CreativePreviewTab }))
+)
 
 function App() {
   const { theme, toggleTheme } = useTheme()
@@ -18,6 +25,12 @@ function App() {
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const testPageOpen = useUiStore((s) => s.testPageOpen)
   const closeTestPage = useUiStore((s) => s.closeTestPage)
+
+  // Load the basic sample once on first mount, same as the original app.
+  useEffect(() => {
+    useTagSettingsStore.getState().loadBasicSample()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Shareable decoder links: #tab=decoder&tag=<encoded ad request URL>
   useEffect(() => {
@@ -76,8 +89,12 @@ function App() {
               <TabsTrigger value="testpage" className="gap-1.5">
                 Test Page
                 {activeTab === 'testpage' && (
-                  <button
-                    type="button"
+                  // A nested <button> inside TabsTrigger's own <button role="tab">
+                  // is invalid HTML (React 19 flags it) — use a span with an
+                  // onClick + stopPropagation instead, same fix as the vanilla port.
+                  <span
+                    role="button"
+                    tabIndex={-1}
                     className="ml-1 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/15"
                     title="Close Test Page"
                     onClick={(e) => {
@@ -86,7 +103,7 @@ function App() {
                     }}
                   >
                     ✕
-                  </button>
+                  </span>
                 )}
               </TabsTrigger>
             )}
@@ -103,7 +120,9 @@ function App() {
           <EncoderTab />
         </TabsContent>
         <TabsContent value="creative" className="p-4">
-          <CreativePreviewTab />
+          <Suspense fallback={<div className="text-sm text-muted-foreground">Loading editor…</div>}>
+            <CreativePreviewTab />
+          </Suspense>
         </TabsContent>
         {testPageOpen && (
           <TabsContent value="testpage" className="flex flex-1 flex-col p-4">

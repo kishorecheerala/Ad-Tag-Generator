@@ -1,32 +1,55 @@
-# React + TypeScript + Vite
+# Ad Manager Tag Generator
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A React rewrite of the original single-file HTML tool for generating Google Ad
+Manager (GPT) tags with MCM support, an ad-request decoder, a URL encoder,
+and a live HTML/CSS/JS creative preview.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Vite + React 18 + TypeScript**
+- **Tailwind CSS v4** (CSS-first config, no separate `tailwind.config.js`)
+- **shadcn/ui**-style components (hand-authored, not CLI-generated) on top of Radix primitives
+- **Zustand** for app state — the Tag Settings store is the single reactive source of truth (no DOM-scraping, unlike the original vanilla version)
+- **@uiw/react-codemirror** (CodeMirror 6) for the Creative Preview editor, lazy-loaded on demand
 
-## React Compiler
+## Getting started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # start the dev server
+npm run build    # type-check + production build to dist/
+npm run preview  # preview the production build locally
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Project structure
+
+```
+src/
+  components/ui/        shadcn-style primitives (button, card, tabs, dialog, select, ...)
+  components/shared/     ChipInput, SizeChipInput, CopyButton, ResizablePanels, CodePanel, EmptyState
+  features/
+    tag-settings/         Tag Settings tab: store.ts (zustand), lib/ (pure GPT-tag codegen), components/
+    decoder/               Ad Tag Validator & Decoder: parsing lib + parameter dictionaries
+    encoder/               URL Encoder/Decoder (stateless)
+    creative-preview/      CodeMirror HTML/CSS/JS live editor + console bridge
+    test-page/             Full staging-page preview tab
+  stores/uiStore.ts       Cross-cutting UI state (active tab, Test Page visibility)
+  lib/theme.ts            Shared dark/light theme store
+```
+
+All GPT tag-generation logic (`buildHeaderScriptCode`, `buildBodyScriptCode`,
+`generateStagingHtml`, etc.) lives in framework-agnostic, typed modules under
+`features/tag-settings/lib/` — ported directly from the original vanilla JS
+implementation, decoupled from React.
+
+## Deploying to Vercel
+
+This is a standard Vite SPA — Vercel auto-detects it, no extra config needed:
+
+```bash
+git remote add origin <your-github-repo-url>
+git push -u origin main
+```
+
+Then import the repo in the Vercel dashboard (or run `vercel` if you have the
+CLI set up) — build command `npm run build`, output directory `dist`.

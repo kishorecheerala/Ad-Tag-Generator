@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
 import type { AdSenseConfig, AdSlot, KeyValue, SizeMappingLine, TagSettingsState, VideoConfig } from './types'
 import { maybeGenerateNewCorrelator } from './lib/codeBuilders'
 
@@ -243,7 +244,15 @@ export function getTagSettingsSnapshot(): TagSettingsState {
   return toSnapshot(useTagSettingsStore.getState())
 }
 
-/** Live-updating hook version of getTagSettingsSnapshot(), for components that need to re-render as state changes. */
+/**
+ * Live-updating hook version of getTagSettingsSnapshot(). toSnapshot() builds
+ * a new object every call, so it's wrapped in useShallow — otherwise
+ * useSyncExternalStore sees a new reference on every render and either
+ * re-renders in a loop or (in React 18+) throws the "getSnapshot should be
+ * cached" warning/error. Shallow comparison is safe here because every
+ * nested value (video, adsense, slots, etc.) is passed through by reference,
+ * not cloned, so it only changes when the underlying store field does.
+ */
 export function useTagSettingsSnapshot(): TagSettingsState {
-  return useTagSettingsStore(toSnapshot)
+  return useTagSettingsStore(useShallow(toSnapshot))
 }
