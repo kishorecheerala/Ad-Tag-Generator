@@ -240,7 +240,7 @@ export function buildHeaderScriptCode(state: TagSettingsState, networkBaseSlotPa
 }
 
 /** Rotates the correlator, but only when neither header nor body is custom-edited — see generateStagingHtml.ts for why. */
-export function maybeGenerateNewCorrelator(state: TagSettingsState): number {
+export function maybeGenerateNewCorrelator(state: Pick<TagSettingsState, 'customHeaderCode' | 'customBodyCode' | 'correlator'>): number {
   if (state.customHeaderCode === null && state.customBodyCode === null) {
     return Math.floor(Math.random() * 1_000_000_000_000)
   }

@@ -1,9 +1,11 @@
+import { useEffect } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import { useTheme } from '@/lib/theme'
 import { useUiStore, type AppTab } from '@/stores/uiStore'
+import { useDecoderStore } from '@/features/decoder/store'
 import { TagSettingsTab } from '@/features/tag-settings/TagSettingsTab'
 import { DecoderTab } from '@/features/decoder/DecoderTab'
 import { EncoderTab } from '@/features/encoder/EncoderTab'
@@ -16,6 +18,26 @@ function App() {
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const testPageOpen = useUiStore((s) => s.testPageOpen)
   const closeTestPage = useUiStore((s) => s.closeTestPage)
+
+  // Shareable decoder links: #tab=decoder&tag=<encoded ad request URL>
+  useEffect(() => {
+    function applyHash() {
+      const hash = window.location.hash.replace(/^#/, '')
+      const params = new URLSearchParams(hash)
+      if (params.get('tab') === 'decoder') {
+        setActiveTab('decoder')
+        const tag = params.get('tag')
+        if (tag) {
+          useDecoderStore.getState().setTagInput(tag)
+          useDecoderStore.getState().decode()
+        }
+      }
+    }
+    applyHash()
+    window.addEventListener('hashchange', applyHash)
+    return () => window.removeEventListener('hashchange', applyHash)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
