@@ -1,6 +1,23 @@
 import type { TagSettingsState } from '../types'
 import { formatSizes, parseSizeString, parseViewport, pixelSizesOnly } from './sizeUtils'
 
+/** Builds a `{ 'key': ['v1', 'v2'] }` object literal for the current
+ * Slot.setConfig({ targeting }) API (Slot.setTargeting is deprecated). Repeated
+ * keys are grouped into one value array. Returns '' when there's nothing to set. */
+function buildTargetingObjectLiteral(targeting: { key: string; val: string }[]): string {
+  if (targeting.length === 0) return ''
+  const byKey = new Map<string, string[]>()
+  targeting.forEach((kv) => {
+    const vals = byKey.get(kv.key) ?? []
+    vals.push(kv.val)
+    byKey.set(kv.key, vals)
+  })
+  const entries = Array.from(byKey.entries()).map(
+    ([key, vals]) => `'${key}': [${vals.map((v) => `'${v}'`).join(', ')}]`
+  )
+  return `{ ${entries.join(', ')} }`
+}
+
 export function buildVastUrl(state: TagSettingsState, networkBaseSlotPath: string): string {
   if (state.slots.length === 0) return ''
   const adSlot = state.slots[0]
@@ -135,13 +152,13 @@ export function buildCompanionSlotParts(state: TagSettingsState, networkBaseSlot
     const parsedSizes = parseSizeString(slot.sizes)
     const formattedSizes = formatSizes(parsedSizes)
     companionSlotDefinitionsCode += `    googletag.defineSlot('${fullSlotPath}', ${formattedSizes}, '${adDivId}')\n`
-    slot.targeting.forEach((kv) => {
-      companionSlotDefinitionsCode += `             .setTargeting('${kv.key}', ['${kv.val}'])\n`
-    })
     companionSlotDefinitionsCode += `             .addService(googletag.companionAds())`
     if (state.video.allowNonCompanionAds) {
       companionSlotDefinitionsCode += `\n             .addService(googletag.pubads())`
     }
+    // Slot.setTargeting is deprecated — use setConfig({ targeting }) (goes last).
+    const compTargeting = buildTargetingObjectLiteral(slot.targeting)
+    if (compTargeting) companionSlotDefinitionsCode += `\n             .setConfig({ targeting: ${compTargeting} })`
     companionSlotDefinitionsCode += `;\n\n`
   })
 
@@ -175,11 +192,13 @@ export function buildStandardSlotParts(state: TagSettingsState, networkBaseSlotP
     adSlotDefinitionsCode += slot.oop
       ? `    googletag.defineOutOfPageSlot('${fullSlotPath}', '${adDivId}')\n`
       : `    googletag.defineSlot('${fullSlotPath}', ${formattedSizes}, '${adDivId}')\n`
-    slot.targeting.forEach((kv) => {
-      adSlotDefinitionsCode += `             .setTargeting('${kv.key}', ['${kv.val}'])\n`
-    })
     if (state.sizeMappingEnabled) adSlotDefinitionsCode += `             .defineSizeMapping(${state.sizeMappingName})\n`
-    adSlotDefinitionsCode += `             .addService(googletag.pubads());\n\n`
+    adSlotDefinitionsCode += `             .addService(googletag.pubads())`
+    // Slot.setTargeting is deprecated; set slot-level targeting via
+    // setConfig({ targeting }) instead. setConfig returns void, so it goes last.
+    const slotTargeting = buildTargetingObjectLiteral(slot.targeting)
+    if (slotTargeting) adSlotDefinitionsCode += `\n             .setConfig({ targeting: ${slotTargeting} })`
+    adSlotDefinitionsCode += `;\n\n`
   })
 
   let pageTargetingSettingsCode = ''

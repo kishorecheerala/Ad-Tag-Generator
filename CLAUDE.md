@@ -68,8 +68,11 @@ reference** — so the snapshot is JSON-serializable and cheap.
   not a tuple — index access will break on it.**
 - **`codeBuilders.ts`** — `buildHeaderScriptCode` / `buildBodyScriptCode` / `buildStandardSlotParts` /
   `buildVastUrl` / `buildHttpVectorUrl`. These produce the copy-paste tag **and** feed the staging page, so
-  they never drift. Uses `googletag.setConfig({ singleRequest: true })` (NOT the deprecated
-  `pubads().enableSingleRequest()`).
+  they never drift. Deprecated GPT setters use the `setConfig` form:
+  `pubads().enableSingleRequest()` → `googletag.setConfig({ singleRequest: true })`, and `Slot.setTargeting()`
+  → `slot.setConfig({ targeting: { key: ['val'] } })` (via `buildTargetingObjectLiteral`; setConfig returns
+  void so it's the terminal call after `addService`). Still on the old form on purpose: passback
+  (`definePassback().setTargeting`) and page-level (`pubads().setTargeting`).
 - **`generateStagingHtml.ts`** — builds a full standalone HTML document (as a string) with embedded
   jQuery + the `adslotsData` (slotRenderEnded) handler that populates the per-slot **asInfo** panel. Two
   modes via options: `isPreview` (minimal, for the in-app Live Ads sandbox iframe) vs full page. Also
