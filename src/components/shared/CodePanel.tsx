@@ -12,18 +12,50 @@ interface CodePanelProps {
   onSave?: (code: string) => void
   maxHeightClass?: string
   wrap?: boolean
+  isCustomized?: boolean
+  onResetCustom?: () => void
 }
 
 /** Read-only syntax-highlighted code display with optional Edit/Save & Run and Copy. */
-export function CodePanel({ title, code, editable = true, onSave, maxHeightClass = 'max-h-[420px]', wrap = false }: CodePanelProps) {
+export function CodePanel({
+  title,
+  code,
+  editable = true,
+  onSave,
+  maxHeightClass = 'max-h-[420px]',
+  wrap = false,
+  isCustomized = false,
+  onResetCustom,
+}: CodePanelProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(code)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          {title}
+          {isCustomized && !editing && (
+            <span
+              className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
+              title="This code was manually edited and won't update when you change settings above."
+            >
+              Manual edit
+            </span>
+          )}
+        </CardTitle>
         <div className="flex items-center gap-1">
+          {isCustomized && !editing && onResetCustom && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 bg-white/10 px-2.5 text-xs hover:bg-white/20"
+              onClick={onResetCustom}
+              title="Discard manual edits and resume auto-updating from settings"
+            >
+              Resume Auto-Sync
+            </Button>
+          )}
           {editable && (
             <Button
               size="sm"

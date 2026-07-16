@@ -1,10 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChipInput } from '@/components/shared/ChipInput'
+import { ClearableInput } from '@/components/shared/ClearableInput'
 import { useTagSettingsStore } from '../store'
 import type { TagType } from '../types'
 
@@ -50,7 +50,7 @@ export function TagSettingsCard() {
         </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1">
             <Label>Tag Type</Label>
             <Select value={tagType} onValueChange={(v) => setField('tagType', v as TagType)}>
@@ -68,18 +68,20 @@ export function TagSettingsCard() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Parent Network ID *</Label>
-            <Input
+            <ClearableInput
               value={parentNetwork}
               onChange={(e) => setField('parentNetwork', e.target.value)}
+              onClear={() => setField('parentNetwork', '')}
               placeholder="e.g. 82109981"
               className="font-mono"
             />
           </div>
           <div className="flex flex-col gap-1">
             <Label>MCM Child ID</Label>
-            <Input
+            <ClearableInput
               value={childNetwork}
               onChange={(e) => setField('childNetwork', e.target.value)}
+              onClear={() => setField('childNetwork', '')}
               placeholder="e.g. 22880237682"
               className="font-mono"
             />
@@ -88,7 +90,7 @@ export function TagSettingsCard() {
 
         <div className="flex flex-col gap-1">
           <Label>Custom Targeting</Label>
-          <ChipInput value={pageTargeting} onChange={(v) => setField('pageTargeting', v)} placeholder="Slot Level Key Value, Type key=value" />
+          <ChipInput value={pageTargeting} onChange={(v) => setField('pageTargeting', v)} placeholder="Page Level Key Value, Type key=value" />
         </div>
 
         <div className="flex flex-col divide-y divide-border rounded-md border border-border">

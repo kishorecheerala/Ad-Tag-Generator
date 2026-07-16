@@ -60,7 +60,7 @@ export function AdSlotCard({ index, slot }: AdSlotCardProps) {
         </div>
         <div className="flex flex-col gap-1">
           <Label>Custom Targeting</Label>
-          <ChipInput value={slot.targeting} onChange={(v) => updateSlot(index, { targeting: v })} placeholder="Slot Level Key Value" />
+          <ChipInput value={slot.targeting} onChange={(v) => updateSlot(index, { targeting: v })} placeholder="Slot Level Key Value, Type key=value" />
         </div>
       </div>
     </div>

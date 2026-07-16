@@ -31,8 +31,21 @@ export function ResultsPanel() {
         <div className="flex flex-col gap-4 pr-0 lg:pr-3">
           {showHeaderBody && (
             <>
-              <CodePanel title="GPT <HEAD> code" code={headerCode} onSave={(code) => setField('customHeaderCode', code)} />
-              <CodePanel title="Adslots <BODY> code" code={bodyCode} onSave={(code) => setField('customBodyCode', code)} maxHeightClass="max-h-[340px]" />
+              <CodePanel
+                title="GPT <HEAD> code"
+                code={headerCode}
+                onSave={(code) => setField('customHeaderCode', code)}
+                isCustomized={snapshot.customHeaderCode !== null}
+                onResetCustom={() => setField('customHeaderCode', null)}
+              />
+              <CodePanel
+                title="Adslots <BODY> code"
+                code={bodyCode}
+                onSave={(code) => setField('customBodyCode', code)}
+                maxHeightClass="max-h-[340px]"
+                isCustomized={snapshot.customBodyCode !== null}
+                onResetCustom={() => setField('customBodyCode', null)}
+              />
             </>
           )}
           <McmDetailsPanel snapshot={snapshot} httpVectorUrl={httpVectorUrl} />

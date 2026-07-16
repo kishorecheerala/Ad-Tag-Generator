@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Copy, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +7,14 @@ import { Button } from '@/components/ui/button'
 
 export function EncoderTab() {
   const [value, setValue] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
 
   const encode = () => {
     try {
@@ -38,10 +46,11 @@ export function EncoderTab() {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <Textarea
+          ref={textareaRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Paste URL-encoded text, query strings, or any text to encode/decode…"
-          className="min-h-40 font-mono text-xs"
+          className="min-h-120 resize-none overflow-hidden font-mono text-xs"
         />
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={decode}>

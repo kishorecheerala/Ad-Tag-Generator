@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ResizeHandle } from '@/components/shared/ResizeHandle'
 import { cn } from '@/lib/utils'
 import { useCreativePreviewStore, type CreativeSizePreset } from '../store'
 import { CONSOLE_BRIDGE } from '../consoleBridge'
@@ -11,7 +12,7 @@ const SIZE_PRESETS: { value: CreativeSizePreset; label: string }[] = [
   { value: '728x90', label: '728x90' },
   { value: '320x50', label: '320x50' },
   { value: '160x600', label: '160x600' },
-  { value: 'responsive', label: 'Responsive (drag to resize)' },
+  { value: 'responsive', label: 'Responsive (auto width)' },
 ]
 
 export function LivePreviewFrame() {
@@ -23,6 +24,7 @@ export function LivePreviewFrame() {
   const appendConsoleEntry = useCreativePreviewStore((s) => s.appendConsoleEntry)
   const clearConsole = useCreativePreviewStore((s) => s.clearConsole)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [previewHeight, setPreviewHeight] = useState(600)
 
   const srcDoc = useMemo(() => {
     return `<!DOCTYPE html>
@@ -63,10 +65,10 @@ ${js}
   }, [appendConsoleEntry])
 
   const isResponsive = size === 'responsive'
-  const [w, h] = isResponsive ? [0, 0] : size.split('x').map(Number)
+  const w = isResponsive ? 0 : Number(size.split('x')[0])
 
   return (
-    <Card>
+    <Card className="group relative">
       <CardHeader>
         <CardTitle>Live Preview</CardTitle>
         <Select value={size} onValueChange={(v) => setSize(v as CreativeSizePreset)}>
@@ -82,14 +84,15 @@ ${js}
           </SelectContent>
         </Select>
       </CardHeader>
-      <CardContent className="flex justify-center bg-white p-3">
+      <CardContent className="flex justify-center overflow-auto bg-white p-3">
         <div
-          className={cn('overflow-auto bg-white', isResponsive && 'min-h-[150px] min-w-[200px] resize')}
-          style={isResponsive ? { width: '100%', height: 400, maxWidth: '100%' } : { width: w, height: h }}
+          className={cn('overflow-auto bg-white', isResponsive && 'w-full')}
+          style={{ width: isResponsive ? '100%' : w, height: previewHeight, maxWidth: '100%' }}
         >
           <iframe ref={iframeRef} srcDoc={srcDoc} title="Creative live preview" className="h-full w-full border-0 bg-white" />
         </div>
       </CardContent>
+      <ResizeHandle onResize={(dy) => setPreviewHeight((ph) => Math.max(250, ph + dy))} />
     </Card>
   )
 }

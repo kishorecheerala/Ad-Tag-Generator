@@ -4,9 +4,12 @@ A React rewrite of the original single-file HTML tool for generating Google Ad
 Manager (GPT) tags with MCM support, an ad-request decoder, a URL encoder,
 and a live HTML/CSS/JS creative preview.
 
+> **Working on the code?** See [`CLAUDE.md`](./CLAUDE.md) for the AI/contributor codebase guide
+> (architecture, the GPT-serving gotchas, and the `/testpage` route).
+
 ## Stack
 
-- **Vite + React 18 + TypeScript**
+- **Vite + React 19 + TypeScript**
 - **Tailwind CSS v4** (CSS-first config, no separate `tailwind.config.js`)
 - **shadcn/ui**-style components (hand-authored, not CLI-generated) on top of Radix primitives
 - **Zustand** for app state — the Tag Settings store is the single reactive source of truth (no DOM-scraping, unlike the original vanilla version)
@@ -32,10 +35,14 @@ src/
     decoder/               Ad Tag Validator & Decoder: parsing lib + parameter dictionaries
     encoder/               URL Encoder/Decoder (stateless)
     creative-preview/      CodeMirror HTML/CSS/JS live editor + console bridge
-    test-page/             Full staging-page preview tab
-  stores/uiStore.ts       Cross-cutting UI state (active tab, Test Page visibility)
+    test-page/             TestPageRoute — the standalone /testpage page (real top-level ad-serving page)
+  stores/uiStore.ts       Cross-cutting UI state (active tab)
   lib/theme.ts            Shared dark/light theme store
 ```
+
+The **Test Page** and **Publisher Console** open the real `/testpage` route in a new tab (not an iframe) —
+GPT ad serving and `googletag.openConsole()` require a genuine top-level page. `main.tsx` renders it via the
+SPA fallback; it reads its config from `localStorage` and live-reloads when settings change. See `CLAUDE.md`.
 
 All GPT tag-generation logic (`buildHeaderScriptCode`, `buildBodyScriptCode`,
 `generateStagingHtml`, etc.) lives in framework-agnostic, typed modules under

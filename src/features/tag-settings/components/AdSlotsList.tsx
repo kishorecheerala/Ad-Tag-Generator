@@ -26,11 +26,11 @@ export function AdSlotsList() {
         <AdSlotCard key={i} index={i} slot={slot} />
       ))}
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="relative flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={() => addSlot()}>
           <Plus className="size-3.5" /> Add Slot
         </Button>
-        <Button onClick={handleGenerate} className="px-8">
+        <Button onClick={handleGenerate} className="absolute left-1/2 -translate-x-1/2 px-8">
           Generate Tags
         </Button>
       </div>

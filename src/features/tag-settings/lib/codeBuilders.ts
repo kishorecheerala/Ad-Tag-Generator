@@ -1,10 +1,10 @@
 import type { TagSettingsState } from '../types'
-import { formatSizes, parseSizeString, parseViewport } from './sizeUtils'
+import { formatSizes, parseSizeString, parseViewport, pixelSizesOnly } from './sizeUtils'
 
 export function buildVastUrl(state: TagSettingsState, networkBaseSlotPath: string): string {
   if (state.slots.length === 0) return ''
   const adSlot = state.slots[0]
-  const parsedSizes = parseSizeString(adSlot.sizes)
+  const parsedSizes = pixelSizesOnly(parseSizeString(adSlot.sizes))
   const sizesQueryString = parsedSizes.map((sizePair) => `${sizePair[0]}x${sizePair[1]}`).join('|')
 
   const vastUrlParameters = [
@@ -62,14 +62,15 @@ export function buildBodyScriptCode(state: TagSettingsState, networkBaseSlotPath
 </div>
 <!-- End AdSlot ${slotIndex + 1} -->\n\n`
     } else if (state.tagType === 'amp') {
+      const ampPixelSizes = pixelSizesOnly(parsedSizes)
       let primaryWidth = 300
       let primaryHeight = 250
       let ampMultiSizeAttribute = ''
-      if (parsedSizes.length > 0) {
-        primaryWidth = parsedSizes[0][0]
-        primaryHeight = parsedSizes[0][1]
-        if (parsedSizes.length > 1) {
-          const others = parsedSizes
+      if (ampPixelSizes.length > 0) {
+        primaryWidth = ampPixelSizes[0][0]
+        primaryHeight = ampPixelSizes[0][1]
+        if (ampPixelSizes.length > 1) {
+          const others = ampPixelSizes
             .slice(1)
             .map((sz) => `${sz[0]}x${sz[1]}`)
             .join(',')
@@ -159,7 +160,7 @@ export function buildStandardSlotParts(state: TagSettingsState, networkBaseSlotP
       const viewportDimension = parseViewport(mappingLine.viewport)
       const mappingSizes = parseSizeString(mappingLine.sizes)
       if (viewportDimension && mappingSizes.length > 0) {
-        sizeMappingScriptCode += `                            .addSize([${viewportDimension[0]}, ${viewportDimension[1]}], ${JSON.stringify(mappingSizes)})\n`
+        sizeMappingScriptCode += `                            .addSize([${viewportDimension[0]}, ${viewportDimension[1]}], ${formatSizes(mappingSizes)})\n`
       }
     })
     sizeMappingScriptCode += `                            .build();\n\n`
@@ -183,7 +184,10 @@ export function buildStandardSlotParts(state: TagSettingsState, networkBaseSlotP
 
   let pageTargetingSettingsCode = ''
   if (state.tagType === 'sync') pageTargetingSettingsCode += `    googletag.pubads().enableSyncRendering();\n`
-  if (state.isSingleRequestArchitectureEnabled) pageTargetingSettingsCode += `    googletag.pubads().enableSingleRequest();\n`
+  // enableSingleRequest() is deprecated by GPT in favour of the page-level
+  // setConfig API — use the current form so the generated tag doesn't log a
+  // deprecation warning in the Publisher Console.
+  if (state.isSingleRequestArchitectureEnabled) pageTargetingSettingsCode += `    googletag.setConfig({ singleRequest: true });\n`
   if (state.collapseEmptyDivs) pageTargetingSettingsCode += `    googletag.pubads().collapseEmptyDivs(true);\n`
   if (state.disableInitialLoad) pageTargetingSettingsCode += `    googletag.pubads().disableInitialLoad();\n`
   if (state.forceSafeFrame) pageTargetingSettingsCode += `    googletag.pubads().setForceSafeFrame(true);\n`
@@ -253,7 +257,7 @@ export function buildHttpVectorUrl(state: TagSettingsState, networkBaseSlotPath:
   }
   const vectorUrlParameters = [`gdfp_req=1`, `correlator=${state.correlator}`, `output=ldjh`, `impl=fif`]
   const allSlotSizesQueryString = state.slots
-    .map((s) => parseSizeString(s.sizes).map((sz) => `${sz[0]}x${sz[1]}`).join(','))
+    .map((s) => parseSizeString(s.sizes).map((sz) => (sz === 'fluid' ? 'fluid' : `${sz[0]}x${sz[1]}`)).join(','))
     .join('|')
   vectorUrlParameters.push(`sz=${encodeURIComponent(allSlotSizesQueryString)}`)
   state.slots.forEach((slot) => vectorUrlParameters.push(`iu=${encodeURIComponent(networkBaseSlotPath + '/' + slot.path)}`))
