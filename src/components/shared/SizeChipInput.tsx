@@ -1,8 +1,5 @@
-import { useState, type KeyboardEvent } from 'react'
-import { ChevronDown, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useState, type ClipboardEvent, type KeyboardEvent } from 'react'
+import { X } from 'lucide-react'
 
 const PRESET_GROUPS: { label: string; sizes: { size: string; name: string }[] }[] = [
   {
@@ -30,32 +27,51 @@ const PRESET_GROUPS: { label: string; sizes: { size: string; name: string }[] }[
     sizes: [
       { size: '1x1', name: 'OutOfPage Pixel' },
       { size: '468x60', name: 'Standard Banner' },
+      { size: 'fluid', name: 'Native / Fluid Width' },
     ],
   },
 ]
 
+const FLAT_PRESETS = PRESET_GROUPS.flatMap((g) => g.sizes)
 const SIZE_RE = /^\d+x\d+$/i
+const isValidSizeToken = (s: string) => SIZE_RE.test(s) || s === 'fluid'
 
 interface SizeChipInputProps {
   value: string[]
   onChange: (value: string[]) => void
 }
 
+/** Chip input for ad slot sizes: fixed single-line height like a plain text input, with a
+ * live dropdown of standard sizes that opens on focus and narrows as you type. */
 export function SizeChipInput({ value, onChange }: SizeChipInputProps) {
   const [draft, setDraft] = useState('')
+  const [focused, setFocused] = useState(false)
+
+  const query = draft.trim().toLowerCase()
+  const suggestions = FLAT_PRESETS.filter(
+    (p) => !value.includes(p.size) && (!query || p.size.includes(query) || p.name.toLowerCase().includes(query))
+  )
+  const showSuggestions = focused && suggestions.length > 0
 
   const addSize = (size: string) => {
     const normalized = size.trim().toLowerCase()
-    if (!SIZE_RE.test(normalized)) return
+    if (!isValidSizeToken(normalized)) return
     if (value.includes(normalized)) return
     onChange([...value, normalized])
+  }
+
+  const addSizes = (raw: string) => {
+    const tokens = raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    const additions = tokens.filter((t) => isValidSizeToken(t) && !value.includes(t))
+    if (additions.length === 0) return
+    onChange([...value, ...Array.from(new Set(additions))])
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       if (draft.trim()) {
         e.preventDefault()
-        addSize(draft)
+        addSizes(draft)
         setDraft('')
       }
     } else if (e.key === 'Backspace' && !draft && value.length > 0) {
@@ -63,67 +79,67 @@ export function SizeChipInput({ value, onChange }: SizeChipInputProps) {
     }
   }
 
+  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text')
+    if (pasted.includes(',')) {
+      e.preventDefault()
+      addSizes(draft + pasted)
+      setDraft('')
+    }
+  }
+
   const removeAt = (idx: number) => onChange(value.filter((_, i) => i !== idx))
 
   return (
-    <div className="flex min-h-8 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
-      {value.map((size, i) => (
-        <span
-          key={`${size}-${i}`}
-          className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary"
-        >
-          {size}
-          <button type="button" onClick={() => removeAt(i)} className="rounded-full hover:bg-primary/25" title="Remove">
-            <X className="size-3" />
-          </button>
-        </span>
-      ))}
-      <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={() => {
-          if (draft.trim()) {
-            addSize(draft)
-            setDraft('')
-          }
-        }}
-        placeholder={value.length === 0 ? 'e.g. 300x250' : '+Size'}
-        className="min-w-20 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-      />
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon-sm" title="Select standard sizes" className="shrink-0">
-            <ChevronDown className="size-3.5" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="max-h-80 overflow-y-auto">
-          {PRESET_GROUPS.map((group) => (
-            <div key={group.label} className="mb-2 last:mb-0">
-              <div className="px-1 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                {group.label}
-              </div>
-              {group.sizes.map(({ size, name }) => {
-                const checked = value.includes(size)
-                return (
-                  <label
-                    key={size}
-                    className="flex cursor-pointer items-center justify-between gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent"
-                  >
-                    <span>
-                      {size} <span className="text-muted-foreground">({name})</span>
-                    </span>
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(v) => (v ? addSize(size) : onChange(value.filter((s) => s !== size)))}
-                    />
-                  </label>
-                )
-              })}
-            </div>
+    <div className="relative">
+      <div className="flex h-8 w-full min-w-0 items-center gap-1.5 overflow-x-auto rounded-md border border-input bg-transparent px-2 text-sm shadow-xs transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
+        {value.map((size, i) => (
+          <span
+            key={`${size}-${i}`}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary"
+          >
+            {size === 'fluid' ? 'Fluid' : size}
+            <button type="button" onClick={() => removeAt(i)} className="rounded-full hover:bg-primary/25" title="Remove">
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false)
+            if (draft.trim()) {
+              addSizes(draft)
+              setDraft('')
+            }
+          }}
+          placeholder={value.length === 0 ? 'e.g. 300x250' : '+Size'}
+          className="min-w-20 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+      {showSuggestions && (
+        <div className="absolute top-full left-0 z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-input bg-popover shadow-md">
+          {suggestions.map(({ size, name }) => (
+            <button
+              key={size}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                addSize(size)
+                setDraft('')
+              }}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <span className="font-mono">{size === 'fluid' ? 'Fluid' : size}</span>
+              <span className="text-xs text-muted-foreground">{name}</span>
+            </button>
           ))}
-        </PopoverContent>
-      </Popover>
+        </div>
+      )}
     </div>
   )
 }

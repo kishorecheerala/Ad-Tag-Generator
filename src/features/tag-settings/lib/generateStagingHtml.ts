@@ -1,5 +1,5 @@
 import type { TagSettingsState } from '../types'
-import { escHtml, formatSizes, parseSizeString } from './sizeUtils'
+import { escHtml, formatSizes, parseSizeString, pixelSizesOnly } from './sizeUtils'
 import { buildBodyScriptCode, buildCompanionSlotParts, buildHeaderScriptCode, buildStandardSlotParts, buildVastUrl } from './codeBuilders'
 import { highlightCode } from './highlightCode'
 
@@ -7,6 +7,9 @@ export interface GenerateStagingHtmlOptions {
   isPreview?: boolean
   pubConsole?: boolean
   isDark: boolean
+  /** When true, embed a listener that reloads the page whenever the app writes
+   * a new config to localStorage — powers live updates on the /testpage route. */
+  liveReload?: boolean
 }
 
 /**
@@ -82,7 +85,7 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   state.slots.forEach((slot, slotIndex) => {
     const slotDisplayNumber = slotIndex + 1
     const parsedSizes = parseSizeString(slot.sizes)
-    const sizesDisplayString = parsedSizes.map((s) => s[0] + 'x' + s[1]).join(', ')
+    const sizesDisplayString = parsedSizes.map((s) => (s === 'fluid' ? 'Fluid (Native)' : s[0] + 'x' + s[1])).join(', ')
     const targetingString = slot.targeting.map((kv) => kv.key + '=' + kv.val).join(', ')
     const adDivId = `div-gpt-ad-${state.correlator}-${slotIndex}`
     const formattedSizes = formatSizes(parsedSizes)
@@ -120,6 +123,12 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
                 </span>
                 <em class="hidden-element" id="noad${slotDisplayNumber}"><br><b>No Ad Returned!</b></em>
                 <dfn class="info-margin noad hidden-element" id="noadQID${slotDisplayNumber}"><b>Query ID:</b> <em id="noadqid${slotDisplayNumber}"></em></dfn>
+                <span class="hidden-element" id="backfill${slotDisplayNumber}">
+                  <br><b>Ad rendered via AdSense/AdX backfill.</b>
+                  <dfn class="info-margin"><b>Rendered Size:</b> <em id="backfillsz${slotDisplayNumber}"></em></dfn>
+                  <dfn class="info-margin">No Ad Manager line-item details are available for backfill creatives.</dfn>
+                  <dfn class="info-margin"><b>Query ID:</b> <em id="backfillqid${slotDisplayNumber}"></em></dfn>
+                </span>
               </div>
             </div>`
     }
@@ -134,14 +143,15 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       divHtml = `\n<!-- Passback AdSlot ${slotIndex + 1} ### Size: ${formattedSizes} -->\n<div id='div-gpt-ad-${state.correlator}-${slotIndex}-pb'>\n  <script src='https://securepubads.g.doubleclick.net/tag/js/gpt.js'>\n    googletag.cmd.push(function() {\n      googletag.pubads().definePassback('${slotPath}', ${formattedSizes})${slotTargetingCode}\n                        .display();\n    });\n  <\/script>\n</div>\n`
     } else if (state.tagType === 'amp') {
       const slotPath = `${networkBaseSlotPath}/${slot.path}`
+      const ampPixelSizes = pixelSizesOnly(parsedSizes)
       let primaryWidth = 300
       let primaryHeight = 250
       let ampMultiSizeAttribute = ''
-      if (parsedSizes.length > 0) {
-        primaryWidth = parsedSizes[0][0]
-        primaryHeight = parsedSizes[0][1]
-        if (parsedSizes.length > 1) {
-          const others = parsedSizes
+      if (ampPixelSizes.length > 0) {
+        primaryWidth = ampPixelSizes[0][0]
+        primaryHeight = ampPixelSizes[0][1]
+        if (ampPixelSizes.length > 1) {
+          const others = ampPixelSizes
             .slice(1)
             .map((sz) => `${sz[0]}x${sz[1]}`)
             .join(',')
@@ -168,9 +178,23 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
         divHtml = `\n<!-- GPT Companion AdSlot ${slotIndex + 1} ### Size: ${formattedSizes} -->\n<div id='${adDivId}'>\n  <script>\n    googletag.cmd.push(function() { googletag.display('${adDivId}'); });\n  <\/script>\n<\/div>\n`
       }
     } else {
-      const primaryWidth = parsedSizes[0] ? parsedSizes[0][0] : 300
-      const primaryHeight = parsedSizes[0] ? parsedSizes[0][1] : 250
-      divHtml = `\n<!-- GPT AdSlot ${slotDisplayNumber} for Ad unit '${escHtml(slot.path)}' ### Size: ${formattedSizes} -->\n<div id='${adDivId}' class="ad-slot-container" style="min-width:${primaryWidth}px;min-height:${primaryHeight}px;">\n  <script>\n    googletag.cmd.push(function() { googletag.display('${adDivId}'); });\n  <\/script>\n<\/div>\n`
+      const standardPixelSizes = pixelSizesOnly(parsedSizes)
+      // A pure native/fluid slot has no fixed dimensions — let it size to its
+      // content instead of forcing a pixel box. Mixed or pixel-only slots
+      // still get capped to their largest requested size so an
+      // unfilled/misbehaving creative iframe (e.g. a stray interstitial from
+      // the live ad network) can't blow the container out into blank space.
+      const dimensionStyle =
+        standardPixelSizes.length === 0
+          ? 'width:100%;'
+          : (() => {
+              const primaryWidth = standardPixelSizes[0][0]
+              const primaryHeight = standardPixelSizes[0][1]
+              const maxWidth = Math.max(...standardPixelSizes.map((s) => s[0]))
+              const maxHeight = Math.max(...standardPixelSizes.map((s) => s[1]))
+              return `min-width:${primaryWidth}px;min-height:${primaryHeight}px;max-width:${maxWidth}px;max-height:${maxHeight}px;overflow:hidden;`
+            })()
+      divHtml = `\n<!-- GPT AdSlot ${slotDisplayNumber} for Ad unit '${escHtml(slot.path)}' ### Size: ${formattedSizes} -->\n<div id='${adDivId}' class="ad-slot-container" style="${dimensionStyle}">\n  <script>\n    googletag.cmd.push(function() { googletag.display('${adDivId}'); });\n  <\/script>\n<\/div>\n`
     }
 
     slotsOutputHtml += `
@@ -209,8 +233,25 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   if (state.disableCookies) settingsInfoHtml += '<b>Cookies Disabled:</b> Yes<br>\n  '
   if (state.adsenseEnabled) settingsInfoHtml += '<b>AdSense Settings:</b> Enabled<br>\n  '
 
+  // When the Publisher Console is requested, open it once GPT is ready. When it
+  // isn't, fully disable it (not just hide the panel) so the live network can't
+  // auto-open it and leave the per-slot "Delivery Tools" overlay showing while
+  // the panel is gone. disablePublisherConsole must run before enableServices,
+  // so it's pushed ahead of the head script; openConsole runs after.
+  const consoleDisableScriptCode = options.pubConsole
+    ? ''
+    : `\n<scr` +
+      `ipt>window.googletag = window.googletag || {cmd: []};\ngoogletag.cmd.push(function(){ if (googletag.disablePublisherConsole) googletag.disablePublisherConsole(); });<\/scr` +
+      `ipt>`
   const publisherConsoleScriptCode = options.pubConsole
     ? `\n<scr` + `ipt>googletag.cmd.push(function(){googletag.openConsole();});<\/scr` + `ipt>`
+    : ''
+
+  // On the standalone /testpage route, reload when the app pushes new settings
+  // (a `storage` event fires in this tab when the app tab rewrites the config),
+  // so the test page tracks edits in real time.
+  const liveReloadScriptCode = options.liveReload
+    ? `\n<scr` + `ipt>window.addEventListener('storage',function(e){if(e.key==='adTagTestPageConfig')location.reload();});<\/scr` + `ipt>`
     : ''
 
   let bodyContent = ''
@@ -386,6 +427,7 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   <scr` + `ipt>
   var oopAlert = false;
   var adslotsEventData = [];
+  var slotFilledState = {};
 
   function checkOop(slotIndex){
     var elementIndex = $('#DFPTagsController').index();
@@ -426,15 +468,25 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
 
     var queryId = (data.slot && typeof data.slot.getEscapedQemQueryId === 'function') ? data.slot.getEscapedQemQueryId() : 'N/A';
 
-    // slotRenderEnded can fire more than once for the same slot (e.g. an
-    // initial empty signal followed by a later backfill). Reset both visual
-    // states before applying this event's result, so stale state from a
-    // prior call doesn't stick around alongside the new one.
+    // slotRenderEnded can fire more than once for the same slot. Once a slot has
+    // rendered a real ad, ignore a later empty signal — otherwise the populated
+    // Advertiser/Line Item/Creative details get wiped back to "No Ad Returned!"
+    // a moment after they appear.
+    if (data.isEmpty && slotFilledState[slotDisplayNumber]) {
+      console.log('   %cIgnoring later empty event for an already-filled slot.', 'font-style:italic');
+      console.groupEnd();
+      return;
+    }
+
+    // Reset visual states before applying this event's result, so stale state
+    // from a prior call doesn't stick around alongside the new one.
     $('#asinfo' + slotDisplayNumber).hide();
     $('#noad' + slotDisplayNumber).hide();
     $('#noadQID' + slotDisplayNumber).hide();
+    $('#backfill' + slotDisplayNumber).hide();
 
     if (!data.isEmpty) {
+      slotFilledState[slotDisplayNumber] = true;
       $('#asinfo' + slotDisplayNumber).show();
       console.log('   %cAdvertiser ID:  ', 'font-style:italic', data.advertiserId);
       console.log('   %cCampaign   ID:  ', 'font-style:italic', data.campaignId);
@@ -460,14 +512,36 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       $('#noad' + slotDisplayNumber).show();
       $('#noadqid' + slotDisplayNumber).text(queryId);
       $('#noadQID' + slotDisplayNumber).show();
+      // The GAM auction came back empty, but an AdSense/AdX backfill creative
+      // can still paint into the slot a moment later. slotRenderEnded/
+      // getResponseInformation expose no line-item data for backfill, so detect
+      // the rendered iframe directly and report that an ad actually showed.
+      (function (n, qid, id) {
+        window.setTimeout(function () {
+          // If a real ad filled this slot in the meantime, leave its details be.
+          if (slotFilledState[n]) return;
+          var div = document.getElementById(id);
+          var frame = div ? div.querySelector('iframe') : null;
+          if (frame && frame.offsetWidth > 1 && frame.offsetHeight > 1) {
+            $('#noad' + n).hide();
+            $('#noadQID' + n).hide();
+            $('#backfillsz' + n).text(frame.offsetWidth + 'x' + frame.offsetHeight);
+            $('#backfillqid' + n).text(qid);
+            $('#backfill' + n).show();
+            $('#asInfo-wrapper' + n).width(frame.offsetWidth >= 300 ? frame.offsetWidth + 22 : 322);
+          }
+        }, 1500);
+      })(slotDisplayNumber, queryId, divId);
     }
     console.log('   %cQuery      ID:  ', 'font-style:italic', queryId);
     console.groupEnd();
   }
   <\/scr` + `ipt>
 
+  ${consoleDisableScriptCode}
   ${stagingHeadScriptCode}
   ${publisherConsoleScriptCode}
+  ${liveReloadScriptCode}
 </head>
 <body>
   ${bodyContent}

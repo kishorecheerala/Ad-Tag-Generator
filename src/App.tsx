@@ -6,11 +6,11 @@ import { Toaster } from '@/components/ui/sonner'
 import { useTheme } from '@/lib/theme'
 import { useUiStore, type AppTab } from '@/stores/uiStore'
 import { useDecoderStore } from '@/features/decoder/store'
-import { useTagSettingsStore } from '@/features/tag-settings/store'
+import { useTagSettingsStore, useTagSettingsSnapshot } from '@/features/tag-settings/store'
 import { TagSettingsTab } from '@/features/tag-settings/TagSettingsTab'
 import { DecoderTab } from '@/features/decoder/DecoderTab'
 import { EncoderTab } from '@/features/encoder/EncoderTab'
-import { TestPageTab } from '@/features/test-page/TestPageTab'
+import { TEST_PAGE_CONFIG_KEY } from '@/features/test-page/TestPageRoute'
 
 // CodeMirror + its language packages are the single heaviest dependency in
 // the app and are only needed once someone visits Creative Preview — code
@@ -23,14 +23,33 @@ function App() {
   const { theme, toggleTheme } = useTheme()
   const activeTab = useUiStore((s) => s.activeTab)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const testPageOpen = useUiStore((s) => s.testPageOpen)
-  const closeTestPage = useUiStore((s) => s.closeTestPage)
+  const snapshot = useTagSettingsSnapshot()
 
   // Load the basic sample once on first mount, same as the original app.
   useEffect(() => {
     useTagSettingsStore.getState().loadBasicSample()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Live-update any open /testpage tab: whenever settings or theme change and a
+  // test page has been opened (its config key exists), refresh the stored
+  // config — preserving the console mode it was opened with. The /testpage
+  // document watches this key and reloads, so it tracks edits in real time.
+  useEffect(() => {
+    if (!localStorage.getItem(TEST_PAGE_CONFIG_KEY)) return
+    const timer = setTimeout(() => {
+      const raw = localStorage.getItem(TEST_PAGE_CONFIG_KEY)
+      if (!raw) return
+      let pubConsole = false
+      try {
+        pubConsole = Boolean(JSON.parse(raw).pubConsole)
+      } catch {
+        // keep default
+      }
+      localStorage.setItem(TEST_PAGE_CONFIG_KEY, JSON.stringify({ snapshot, pubConsole, isDark: theme === 'dark' }))
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [snapshot, theme])
 
   // Shareable decoder links: #tab=decoder&tag=<encoded ad request URL>
   useEffect(() => {
@@ -85,28 +104,6 @@ function App() {
             <TabsTrigger value="decoder">Ad Tag Validator &amp; Decoder</TabsTrigger>
             <TabsTrigger value="encoder">URL Encoder / Decoder</TabsTrigger>
             <TabsTrigger value="creative">Creative Preview</TabsTrigger>
-            {testPageOpen && (
-              <TabsTrigger value="testpage" className="gap-1.5">
-                Test Page
-                {activeTab === 'testpage' && (
-                  // A nested <button> inside TabsTrigger's own <button role="tab">
-                  // is invalid HTML (React 19 flags it) — use a span with an
-                  // onClick + stopPropagation instead, same fix as the vanilla port.
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    className="ml-1 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/15"
-                    title="Close Test Page"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeTestPage()
-                    }}
-                  >
-                    ✕
-                  </span>
-                )}
-              </TabsTrigger>
-            )}
           </TabsList>
         </div>
 
@@ -124,11 +121,6 @@ function App() {
             <CreativePreviewTab />
           </Suspense>
         </TabsContent>
-        {testPageOpen && (
-          <TabsContent value="testpage" className="flex flex-1 flex-col p-4">
-            <TestPageTab />
-          </TabsContent>
-        )}
       </Tabs>
 
       <Toaster />

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { X } from 'lucide-react'
 
 export interface KeyValue {
@@ -16,14 +16,23 @@ interface ChipInputProps {
 export function ChipInput({ value, onChange, placeholder }: ChipInputProps) {
   const [draft, setDraft] = useState('')
 
-  const commit = (raw: string) => {
-    const trimmed = raw.trim().replace(/[, ]+$/, '')
-    if (!trimmed) return
+  const parseEntry = (raw: string): KeyValue | null => {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
     const eqIdx = trimmed.indexOf('=')
     const key = eqIdx === -1 ? trimmed : trimmed.slice(0, eqIdx)
     const val = eqIdx === -1 ? '' : trimmed.slice(eqIdx + 1)
-    if (!key) return
-    onChange([...value, { key, val }])
+    if (!key) return null
+    return { key, val }
+  }
+
+  const commit = (raw: string) => {
+    const entries = raw
+      .split(',')
+      .map(parseEntry)
+      .filter((kv): kv is KeyValue => kv !== null)
+    if (entries.length === 0) return
+    onChange([...value, ...entries])
     setDraft('')
   }
 
@@ -35,6 +44,14 @@ export function ChipInput({ value, onChange, placeholder }: ChipInputProps) {
       }
     } else if (e.key === 'Backspace' && !draft && value.length > 0) {
       onChange(value.slice(0, -1))
+    }
+  }
+
+  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text')
+    if (pasted.includes(',')) {
+      e.preventDefault()
+      commit(draft + pasted)
     }
   }
 
@@ -58,6 +75,7 @@ export function ChipInput({ value, onChange, placeholder }: ChipInputProps) {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         onBlur={() => draft.trim() && commit(draft)}
         placeholder={value.length === 0 ? placeholder : ''}
         className="min-w-28 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"

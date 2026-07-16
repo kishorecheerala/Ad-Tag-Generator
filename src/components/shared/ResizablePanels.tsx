@@ -10,7 +10,10 @@ interface ResizablePanelsProps {
   className?: string
 }
 
-/** Two-pane layout with a draggable divider (desktop only; stacks on mobile). */
+/** Two-pane layout with a draggable divider (desktop only; stacks on mobile).
+ * The split is stored as a percentage, not a pixel width, so it stays fluid
+ * and rescales automatically with the container instead of getting locked to
+ * whatever pixel value was under the cursor at drag time. */
 export function ResizablePanels({
   left,
   right,
@@ -20,15 +23,18 @@ export function ResizablePanels({
   className,
 }: ResizablePanelsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [leftWidth, setLeftWidth] = useState<number | null>(null)
+  const [leftPercent, setLeftPercent] = useState(defaultLeftPercent)
   const draggingRef = useRef(false)
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
       if (!draggingRef.current || !containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
-      const x = Math.max(minLeftPx, Math.min(rect.width - minRightPx, e.clientX - rect.left))
-      setLeftWidth(x)
+      if (rect.width <= 0) return
+      const minLeftPercent = (minLeftPx / rect.width) * 100
+      const maxLeftPercent = 100 - (minRightPx / rect.width) * 100
+      const rawPercent = ((e.clientX - rect.left) / rect.width) * 100
+      setLeftPercent(Math.max(minLeftPercent, Math.min(maxLeftPercent, rawPercent)))
     }
     function onUp() {
       if (!draggingRef.current) return
@@ -46,10 +52,7 @@ export function ResizablePanels({
 
   return (
     <div ref={containerRef} className={cn('flex w-full flex-col gap-4 lg:flex-row lg:gap-0', className)}>
-      <div
-        className="min-w-0 flex-1 lg:flex-none"
-        style={leftWidth != null ? { width: leftWidth, flex: 'none' } : { flexBasis: `${defaultLeftPercent}%` }}
-      >
+      <div className="min-w-0 flex-1 lg:flex-none" style={{ flexBasis: `${leftPercent}%` }}>
         {left}
       </div>
       <div
@@ -59,7 +62,7 @@ export function ResizablePanels({
           document.body.style.userSelect = 'none'
           e.preventDefault()
         }}
-        className="mx-1 hidden w-1.5 shrink-0 cursor-col-resize self-stretch rounded transition-colors hover:bg-primary/40 active:bg-primary/60 lg:block"
+        className="mx-1 hidden w-0.5 shrink-0 cursor-col-resize self-stretch rounded bg-transparent transition-colors hover:bg-red-500 active:bg-red-600 lg:block"
       />
       <div className="min-w-0 flex-1">{right}</div>
     </div>

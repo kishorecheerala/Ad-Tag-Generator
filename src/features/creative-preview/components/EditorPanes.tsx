@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
@@ -6,6 +7,7 @@ import { dracula } from '@uiw/codemirror-theme-dracula'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { ResizeHandle } from '@/components/shared/ResizeHandle'
 import { useCreativePreviewStore } from '../store'
 
 export function EditorPanes() {
@@ -18,9 +20,11 @@ export function EditorPanes() {
   const setCss = useCreativePreviewStore((s) => s.setCss)
   const setJs = useCreativePreviewStore((s) => s.setJs)
   const reset = useCreativePreviewStore((s) => s.reset)
+  const [editorHeight, setEditorHeight] = useState(890)
+  const cmHeight = `${editorHeight}px`
 
   return (
-    <Tabs value={activePane} onValueChange={(v) => setActivePane(v as 'html' | 'css' | 'js')} className="overflow-hidden rounded-lg border border-border">
+    <Tabs value={activePane} onValueChange={(v) => setActivePane(v as 'html' | 'css' | 'js')} className="group relative overflow-hidden rounded-lg border border-border">
       <div className="flex items-center justify-between border-b border-border bg-muted px-2 py-1.5">
         <TabsList className="bg-transparent p-0">
           <TabsTrigger value="html">HTML</TabsTrigger>
@@ -40,14 +44,15 @@ export function EditorPanes() {
         </Button>
       </div>
       <TabsContent value="html" className="m-0">
-        <CodeMirror value={html_} height="380px" theme={dracula} extensions={[html()]} onChange={setHtml} basicSetup={{ tabSize: 2 }} />
+        <CodeMirror value={html_} height={cmHeight} theme={dracula} extensions={[html()]} onChange={setHtml} basicSetup={{ tabSize: 2 }} />
       </TabsContent>
       <TabsContent value="css" className="m-0">
-        <CodeMirror value={css_} height="380px" theme={dracula} extensions={[css()]} onChange={setCss} basicSetup={{ tabSize: 2 }} />
+        <CodeMirror value={css_} height={cmHeight} theme={dracula} extensions={[css()]} onChange={setCss} basicSetup={{ tabSize: 2 }} />
       </TabsContent>
       <TabsContent value="js" className="m-0">
-        <CodeMirror value={js_} height="380px" theme={dracula} extensions={[javascript()]} onChange={setJs} basicSetup={{ tabSize: 2 }} />
+        <CodeMirror value={js_} height={cmHeight} theme={dracula} extensions={[javascript()]} onChange={setJs} basicSetup={{ tabSize: 2 }} />
       </TabsContent>
+      <ResizeHandle onResize={(dy) => setEditorHeight((hgt) => Math.max(250, hgt + dy))} />
     </Tabs>
   )
 }

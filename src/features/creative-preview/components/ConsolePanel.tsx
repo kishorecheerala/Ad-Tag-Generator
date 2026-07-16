@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Copy, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { ResizeHandle } from '@/components/shared/ResizeHandle'
 import { cn } from '@/lib/utils'
 import { useCreativePreviewStore } from '../store'
 
@@ -24,6 +25,7 @@ export function ConsolePanel() {
   const entries = useCreativePreviewStore((s) => s.consoleEntries)
   const clearConsole = useCreativePreviewStore((s) => s.clearConsole)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [consoleHeight, setConsoleHeight] = useState(200)
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -40,7 +42,7 @@ export function ConsolePanel() {
   }
 
   return (
-    <Card>
+    <Card className="group relative">
       <CardHeader>
         <CardTitle>Console</CardTitle>
         <div className="flex items-center gap-1">
@@ -52,7 +54,7 @@ export function ConsolePanel() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent ref={scrollRef} className="max-h-40 overflow-y-auto p-0 font-mono text-[11.5px]">
+      <CardContent ref={scrollRef} className="overflow-y-auto p-0 pb-3 font-mono text-[11.5px]" style={{ height: consoleHeight }}>
         {entries.length === 0 ? (
           <EmptyState>Console output will appear here.</EmptyState>
         ) : (
@@ -67,6 +69,7 @@ export function ConsolePanel() {
           ))
         )}
       </CardContent>
+      <ResizeHandle onResize={(dy) => setConsoleHeight((hgt) => Math.max(80, hgt + dy))} />
     </Card>
   )
 }

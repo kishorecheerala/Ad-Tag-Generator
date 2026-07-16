@@ -54,7 +54,7 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
   css: DEFAULT_CSS,
   js: DEFAULT_JS,
   activePane: 'html',
-  size: '300x250',
+  size: 'responsive',
   consoleEntries: [],
   runToken: 0,
 
@@ -66,6 +66,6 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
   appendConsoleEntry: (entry) =>
     set((s) => ({ consoleEntries: [...s.consoleEntries, { ...entry, time: new Date().toLocaleTimeString() }] })),
   clearConsole: () => set({ consoleEntries: [] }),
-  reset: () => set({ html: DEFAULT_HTML, css: DEFAULT_CSS, js: DEFAULT_JS, consoleEntries: [], size: '300x250', runToken: Date.now() }),
+  reset: () => set({ html: DEFAULT_HTML, css: DEFAULT_CSS, js: DEFAULT_JS, consoleEntries: [], size: 'responsive', runToken: Date.now() }),
   run: () => set((s) => ({ runToken: s.runToken + 1 })),
 }))
