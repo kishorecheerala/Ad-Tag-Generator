@@ -6,11 +6,12 @@ import { Toaster } from '@/components/ui/sonner'
 import { useTheme } from '@/lib/theme'
 import { useUiStore, type AppTab } from '@/stores/uiStore'
 import { useDecoderStore } from '@/features/decoder/store'
-import { useTagSettingsStore, useTagSettingsSnapshot } from '@/features/tag-settings/store'
+import { useTagSettingsSnapshot, useTagSettingsStore } from '@/features/tag-settings/store'
 import { TagSettingsTab } from '@/features/tag-settings/TagSettingsTab'
 import { DecoderTab } from '@/features/decoder/DecoderTab'
 import { EncoderTab } from '@/features/encoder/EncoderTab'
 import { TEST_PAGE_CONFIG_KEY } from '@/features/test-page/TestPageRoute'
+import { toast } from 'sonner'
 
 // CodeMirror + its language packages are the single heaviest dependency in
 // the app and are only needed once someone visits Creative Preview — code
@@ -25,11 +26,7 @@ function App() {
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const snapshot = useTagSettingsSnapshot()
 
-  // Load the basic sample once on first mount, same as the original app.
-  useEffect(() => {
-    useTagSettingsStore.getState().loadBasicSample()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+
 
   // Live-update any open /testpage tab: whenever settings or theme change and a
   // test page has been opened (its config key exists), refresh the stored
@@ -37,6 +34,17 @@ function App() {
   // document watches this key and reloads, so it tracks edits in real time.
   useEffect(() => {
     if (!localStorage.getItem(TEST_PAGE_CONFIG_KEY)) return
+
+    try {
+      const raw = localStorage.getItem(TEST_PAGE_CONFIG_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.isFromDecoder) return
+      }
+    } catch {
+      // proceed if parse fails
+    }
+
     const timer = setTimeout(() => {
       const raw = localStorage.getItem(TEST_PAGE_CONFIG_KEY)
       if (!raw) return
@@ -50,6 +58,27 @@ function App() {
     }, 1000)
     return () => clearTimeout(timer)
   }, [snapshot, theme])
+
+  // Synchronize location spoofing edits made on the test page back to the main app store state
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === TEST_PAGE_CONFIG_KEY && localStorage.getItem('adTagTestPageConfigUpdateSource') === 'location-spoof') {
+        localStorage.removeItem('adTagTestPageConfigUpdateSource')
+        try {
+          const config = JSON.parse(e.newValue || '{}')
+          if (config.snapshot) {
+            const setField = useTagSettingsStore.getState().setField
+            setField('geolocationCoordinates', config.snapshot.geolocationCoordinates || '')
+            setField('geolocationCountry', config.snapshot.geolocationCountry || '')
+          }
+        } catch (err) {
+          console.error('Failed to sync location back to main tab:', err)
+        }
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   // Shareable decoder links: #tab=decoder&tag=<encoded ad request URL>
   useEffect(() => {
@@ -78,10 +107,24 @@ function App() {
           Ad Manager Tag Generator{' '}
           <span className="font-normal opacity-90">with MCM Support &amp; Tag Validator &amp; URL Decoder</span>
         </h1>
-        <div className="flex items-center gap-3 text-xs opacity-90">
+        <div className="flex items-center gap-3 text-sm opacity-90">
           <span className="hidden sm:inline">
-            Developed by: Kishore Cheerala | Reach out:{' '}
-            <a className="underline" href="mailto:cheeralakishore@gmail.com">
+            Developed by: Kishore Cheerala | Reach out to me for additional features/suggestions:{' '}
+            <a
+              className="underline hover:text-white cursor-pointer"
+              href="mailto:cheeralakishore@gmail.com"
+              onClick={(e) => {
+                e.preventDefault()
+                navigator.clipboard.writeText('cheeralakishore@gmail.com')
+                toast.success('Email copied to clipboard!')
+                
+                const subject = encodeURIComponent('Ad Manager Tag Generator - Feature Suggestions & Feedback')
+                const body = encodeURIComponent('Hi Kishore,\n\nI have the following suggestions/feedback for Ad Manager Tag Generator:\n\n[Your suggestion/feedback here]\n\nBest regards,\n[Your Name]')
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=cheeralakishore@gmail.com&su=${subject}&body=${body}`
+                
+                window.open(gmailUrl, '_blank')
+              }}
+            >
               cheeralakishore@gmail.com
             </a>
           </span>
@@ -92,7 +135,7 @@ function App() {
             onClick={toggleTheme}
             title="Toggle light/dark theme"
           >
-            {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </Button>
         </div>
       </header>

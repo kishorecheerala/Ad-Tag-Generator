@@ -7,17 +7,6 @@ function emptySlot(path = '', sizes = '', targeting: KeyValue[] = []): AdSlot {
   return { path, sizes, oop: false, comp: false, targeting }
 }
 
-const BASIC_SAMPLE_SLOT: AdSlot = emptySlot('kishore_testing', '300x250, 300x600', [{ key: 'pos', val: 'top' }])
-
-const ADVANCED_SAMPLE_SLOTS: AdSlot[] = [
-  emptySlot('kishore_testing', '300x250, 300x600', [
-    { key: 'pos', val: 'top' },
-    { key: 'env', val: 'test' },
-  ]),
-  emptySlot('Kishore_Sidebar', '300x600', [{ key: 'pos', val: 'sidebar' }]),
-  emptySlot('Kishore_OOP', '1x1', [{ key: 'pos', val: 'interstitial' }]),
-]
-
 function defaultFields(): TagSettingsState {
   return {
     tagType: 'async',
@@ -32,6 +21,7 @@ function defaultFields(): TagSettingsState {
     ampValidation: true,
     ampPlaceholders: false,
     geolocationCoordinates: '',
+    geolocationCountry: '',
     contentExclusion: '',
     publisherProvidedId: '',
 
@@ -39,6 +29,7 @@ function defaultFields(): TagSettingsState {
     video: { format: 'vast', type: 'single', allowNonCompanionAds: true, enableCompanionAutofill: false, cmsId: '', videoId: '' },
 
     pageTargeting: [],
+    pageUrl: '',
 
     sizeMappingEnabled: false,
     sizeMappingName: 'mapping1',
@@ -58,7 +49,7 @@ function defaultFields(): TagSettingsState {
       feature: '',
     },
 
-    slots: [],
+    slots: [emptySlot()],
 
     isMCM: false,
     parentNetwork: '',
@@ -93,8 +84,6 @@ interface TagSettingsStore extends Omit<TagSettingsState, 'isMCM'> {
   removeSizeMappingLine: (index: number) => void
   updateSizeMappingLine: (index: number, line: SizeMappingLine) => void
 
-  loadBasicSample: () => void
-  loadAdvancedSample: () => void
   resetTagSettings: () => void
 
   /** True once Generate Tags has succeeded at least once — gates Results panel + Test Page tab visibility. */
@@ -133,43 +122,7 @@ export const useTagSettingsStore = create<TagSettingsStore>((set, get) => ({
   updateSizeMappingLine: (index, line) =>
     set((s) => ({ sizeMappingLines: s.sizeMappingLines.map((l, i) => (i === index ? line : l)) })),
 
-  loadBasicSample: () =>
-    set({
-      ...defaultFields(),
-      parentNetwork: '82109981',
-      childNetwork: '22880237682',
-      slots: [BASIC_SAMPLE_SLOT],
-      resultsRevealed: false,
-      advancedPanelOpen: false,
-      sizeMappingPanelOpen: false,
-      adsensePanelOpen: false,
-      videoPanelOpen: false,
-    }),
 
-  loadAdvancedSample: () =>
-    set({
-      ...defaultFields(),
-      parentNetwork: '82109981',
-      childNetwork: '22880237682',
-      pageTargeting: [
-        { key: 'category', val: 'adtech' },
-        { key: 'env', val: 'production' },
-      ],
-      advancedPanelOpen: true,
-      collapseEmptyDivs: true,
-      sizeMappingPanelOpen: true,
-      sizeMappingEnabled: true,
-      sizeMappingLines: [
-        { viewport: '1024x768', sizes: '970x250, 728x90' },
-        { viewport: '768x600', sizes: '728x90' },
-        { viewport: '0x0', sizes: '320x50' },
-      ],
-      adsensePanelOpen: true,
-      adsenseEnabled: true,
-      slots: ADVANCED_SAMPLE_SLOTS,
-      resultsRevealed: false,
-      videoPanelOpen: false,
-    }),
 
   // A true reset (blank), not the sample data — nothing valid to
   // auto-regenerate from, so Results/Test Page stay hidden too.
@@ -220,11 +173,13 @@ function toSnapshot(s: TagSettingsStore): TagSettingsState {
     ampValidation: s.ampValidation,
     ampPlaceholders: s.ampPlaceholders,
     geolocationCoordinates: s.geolocationCoordinates,
+    geolocationCountry: s.geolocationCountry,
     contentExclusion: s.contentExclusion,
     publisherProvidedId: s.publisherProvidedId,
     videoEnabled: s.videoEnabled,
     video: s.video,
     pageTargeting: s.pageTargeting,
+    pageUrl: s.pageUrl,
     sizeMappingEnabled: s.sizeMappingEnabled,
     sizeMappingName: s.sizeMappingName,
     sizeMappingLines: s.sizeMappingLines,

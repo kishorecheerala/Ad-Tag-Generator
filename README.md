@@ -7,6 +7,38 @@ and a live HTML/CSS/JS creative preview.
 > **Working on the code?** See [`CLAUDE.md`](./CLAUDE.md) for the AI/contributor codebase guide
 > (architecture, the GPT-serving gotchas, and the `/testpage` route).
 
+## Advanced Ad Tech Troubleshooting Features
+
+This generator includes several production-grade tools designed to simplify debugging and troubleshooting of Google Publisher Tags (GPT):
+
+1. **Precision Geolocation & Targeting Spoofing**:
+   - Easily spoof your browser Geolocation API (`navigator.geolocation`) to test location-dependent ad delivery.
+   - Automatically queue and set location coordinates on GPT via `googletag.pubads().setLocation(lat, lng)`.
+   - Intercept and override specific geo/targeting keys (`nn_geo`, `geo`, `country`) dynamically.
+   - Built-in search integrates with both a local database of major cities and OpenStreetMap's Nominatim API to resolve search names to GPS coordinates instantly.
+   
+2. **Dynamic `/testpage` with Live Sync & Storage Integration**:
+   - Serves staging documents in a genuine, top-level context (required for Google Publisher Console to initialize and codeless ad slots to render).
+   - Any modifications made in the main tab automatically reflect in open test page tabs in real-time via state listeners.
+   - Location modifications selected on the test page automatically sync back and update the main app's input fields.
+
+3. **In-Staging Interactive Code Editors**:
+   - View, edit, and hot-reload raw generated GPT `<head>` and `<slot>` HTML/JS directly on the test page.
+   - Affordance to quickly save custom modifications or resume auto-sync with the generator state.
+
+4. **One-Click Diagnostics & Copy Shortcuts**:
+   - Inspect Advertiser ID, Line Item ID, Query ID, Creative ID, and Rendered size directly inside the slot preview details frame.
+   - Interactive SVG copy buttons let you copy long Query IDs or Advertiser IDs instantly.
+   - Automatic detection of AdSense/AdX backfills when GPT returns an empty payload but paints an iframe.
+
+5. **Direct Decoder Tab Live Previews**:
+   - Paste a raw Google Ad Manager, VAST, or CM360 ad request URL directly.
+   - Instantly open a live sandbox preview (with desktop, tablet, and mobile viewport controls) to verify delivery or test XML playback in VAST Inspector.
+
+6. **Memory Leak & State Cleanup**:
+   - Automatically cleans up stale doubleclick `<iframe>`, anchor ad overlays, and publisher console UI frames upon iframe refreshes or route changes to prevent slot definition conflicts.
+
+
 ## Stack
 
 - **Vite + React 19 + TypeScript**

@@ -18,12 +18,30 @@ export function TagSettingsTab() {
     <div className="flex flex-col gap-4">
       {resultsRevealed && <ResultsPanel />}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        <TagSettingsCard />
-        {advancedPanelOpen && <AdvancedSettingsPanel />}
-        {sizeMappingPanelOpen && <SizeMappingPanel />}
-        {adsensePanelOpen && <AdSensePanel />}
-        {videoPanelOpen && <VideoPanel />}
+      <div className="flex flex-wrap gap-4 items-start">
+        <div className="w-full max-w-[480px] min-w-[300px] flex-1">
+          <TagSettingsCard />
+        </div>
+        {advancedPanelOpen && (
+          <div className="w-full max-w-[480px] min-w-[300px] flex-1">
+            <AdvancedSettingsPanel />
+          </div>
+        )}
+        {sizeMappingPanelOpen && (
+          <div className="w-full max-w-[480px] min-w-[300px] flex-1">
+            <SizeMappingPanel />
+          </div>
+        )}
+        {adsensePanelOpen && (
+          <div className="w-full max-w-[480px] min-w-[300px] flex-1">
+            <AdSensePanel />
+          </div>
+        )}
+        {videoPanelOpen && (
+          <div className="w-full max-w-[480px] min-w-[300px] flex-1">
+            <VideoPanel />
+          </div>
+        )}
       </div>
 
       <AdSlotsList />

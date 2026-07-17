@@ -11,25 +11,19 @@ interface TestPageConfig {
 }
 
 /**
- * React route for `/testpage`. The app stashes the current tag config in
- * localStorage and opens this route in a new tab; here we render the full
- * staging document into the real top-level page.
- *
- * Why a top-level document (not an iframe): GPT needs a genuine page URL for ad
- * serving, and the Google Publisher Console only initializes at the top level.
- * The generated page carries a `storage` listener (liveReload) so it refreshes
- * whenever the app tab rewrites the config — that's the real-time update path.
+ * React route for `/testpage`. Replaced via document.write so that GPT and the
+ * Google Publisher Console run in the real top-level browsing context.
  */
 export function TestPageRoute() {
   const rendered = useRef(false)
 
   useEffect(() => {
-    if (rendered.current) return // guard StrictMode's double effect
+    if (rendered.current) return
     rendered.current = true
 
     const raw = localStorage.getItem(TEST_PAGE_CONFIG_KEY)
     if (!raw) {
-      document.body.textContent = 'Open this page from the “Open Test Page” or Publisher Console button in the app.'
+      document.body.textContent = 'No test configuration found.'
       return
     }
     let cfg: TestPageConfig
@@ -45,11 +39,19 @@ export function TestPageRoute() {
       isDark: cfg.isDark,
       liveReload: true,
     })
-    // Replace this document with the staging page so its <script> tags run in
-    // this real top-level context.
+    
     document.open()
     document.write(html)
     document.close()
+
+    // Listen for storage updates
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === TEST_PAGE_CONFIG_KEY) {
+        window.location.reload()
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
   return <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>Loading test page…</div>
