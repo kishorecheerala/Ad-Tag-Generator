@@ -89,7 +89,12 @@ ${js}
           className={cn('overflow-auto bg-white', isResponsive && 'w-full')}
           style={{ width: isResponsive ? '100%' : w, height: previewHeight, maxWidth: '100%' }}
         >
-          <iframe ref={iframeRef} srcDoc={srcDoc} title="Creative live preview" className="h-full w-full border-0 bg-white" />
+          <iframe
+            ref={iframeRef}
+            srcDoc={srcDoc}
+            title="Creative live preview"
+            className="h-full w-full border-0 bg-white"
+          />
         </div>
       </CardContent>
       <ResizeHandle onResize={(dy) => setPreviewHeight((ph) => Math.max(250, ph + dy))} />

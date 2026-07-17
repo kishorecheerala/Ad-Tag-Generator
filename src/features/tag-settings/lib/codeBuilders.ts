@@ -219,24 +219,39 @@ export function buildStandardSlotParts(state: TagSettingsState, networkBaseSlotP
   if (state.geolocationCoordinates) pageTargetingSettingsCode += `    googletag.pubads().setLocation('${state.geolocationCoordinates}');\n`
   if (state.contentExclusion) pageTargetingSettingsCode += `    googletag.pubads().setCategoryExclusion('${state.contentExclusion}');\n`
   if (state.publisherProvidedId) pageTargetingSettingsCode += `    googletag.pubads().setPublisherProvidedId('${state.publisherProvidedId}');\n`
-  state.pageTargeting.forEach((kv) => {
-    pageTargetingSettingsCode += `    googletag.pubads().setTargeting('${kv.key}', ['${kv.val}']);\n`
-  })
+  if (state.pageUrl) {
+    const cleanUrl = state.pageUrl.replace(/^https?:\/\//i, '').replace(/^\/\//, '')
+    pageTargetingSettingsCode += `    googletag.pubads().set('page_url', '${cleanUrl}');\n`
+  }
+  // PubAdsService.setTargeting is deprecated — set page-level targeting via the
+  // page-level setConfig({ targeting }) in a single grouped call.
+  if (state.pageTargeting.length > 0) {
+    pageTargetingSettingsCode += `    googletag.setConfig({ targeting: ${buildTargetingObjectLiteral(state.pageTargeting)} });\n`
+  }
   if (state.adsenseEnabled) {
+    const attrs: Record<string, string> = {}
     if (state.adsense.uiEnabled) {
-      pageTargetingSettingsCode += `\n    googletag.pubads().set('adsense_ad_types', '${state.adsense.format}');\n`
-      pageTargetingSettingsCode += `    googletag.pubads().set('adsense_background_color', '${state.adsense.backgroundColor}');\n`
-      pageTargetingSettingsCode += `    googletag.pubads().set('adsense_border_color', '${state.adsense.borderColor}');\n`
-      pageTargetingSettingsCode += `    googletag.pubads().set('adsense_link_color', '${state.adsense.titleLinkColor}');\n`
-      pageTargetingSettingsCode += `    googletag.pubads().set('adsense_text_color', '${state.adsense.textColor}');\n`
-      pageTargetingSettingsCode += `    googletag.pubads().set('adsense_url_color', '${state.adsense.urlColor}');\n`
-      if (state.adsense.feature) pageTargetingSettingsCode += `    googletag.pubads().set('adsense_ui_features', '${state.adsense.feature}');\n`
+      attrs['adsense_ad_types'] = state.adsense.format
+      attrs['adsense_background_color'] = state.adsense.backgroundColor
+      attrs['adsense_border_color'] = state.adsense.borderColor
+      attrs['adsense_link_color'] = state.adsense.titleLinkColor
+      attrs['adsense_text_color'] = state.adsense.textColor
+      attrs['adsense_url_color'] = state.adsense.urlColor
+      if (state.adsense.feature) {
+        attrs['adsense_ui_features'] = state.adsense.feature
+      }
     }
     if (state.adsense.pageUrl) {
-      pageTargetingSettingsCode += `    googletag.pubads().set('page_url', '${state.adsense.pageUrl}');\n`
-      pageTargetingSettingsCode += `    googletag.pubads().set('adsense_page_url', '${state.adsense.pageUrl}');\n`
+      attrs['page_url'] = state.adsense.pageUrl
+      attrs['adsense_page_url'] = state.adsense.pageUrl
     }
-    if (state.adsense.channelIds) pageTargetingSettingsCode += `    googletag.pubads().set('adsense_channel_ids', '${state.adsense.channelIds}');\n`
+    if (state.adsense.channelIds) {
+      attrs['adsense_channel_ids'] = state.adsense.channelIds
+    }
+    if (Object.keys(attrs).length > 0) {
+      const attrsStr = JSON.stringify(attrs, null, 6).replace(/\n/g, '\n    ')
+      pageTargetingSettingsCode += `\n    googletag.setConfig({ adsenseAttributes: ${attrsStr} });\n`
+    }
   }
 
   return { sizeMappingScriptCode, adSlotDefinitionsCode, pageTargetingSettingsCode }

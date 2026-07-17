@@ -2,6 +2,7 @@ import type { TagSettingsState } from '../types'
 import { escHtml, formatSizes, parseSizeString, pixelSizesOnly } from './sizeUtils'
 import { buildBodyScriptCode, buildCompanionSlotParts, buildHeaderScriptCode, buildStandardSlotParts, buildVastUrl } from './codeBuilders'
 import { highlightCode } from './highlightCode'
+import { MAJOR_CITIES } from './majorCities'
 
 export interface GenerateStagingHtmlOptions {
   isPreview?: boolean
@@ -37,6 +38,88 @@ export function generateStagingHtml(state: TagSettingsState, options: GenerateSt
           : 'AMP'
   const requestTypeLabel = state.isSingleRequestArchitectureEnabled ? 'SRA' : 'Standard'
   const networkId = state.parentNetwork
+
+  // -- Pre-paint script for Geolocation and GPT location/targeting spoofing --
+  const locationSpoofPrepaintScriptCode = `
+  <script>
+  (function() {
+    var raw = localStorage.getItem('adTagTestPageConfig');
+    if (!raw) return;
+    try {
+      var config = JSON.parse(raw);
+      var coordsStr = config.snapshot.geolocationCoordinates || '';
+      var country = config.snapshot.geolocationCountry || '';
+      
+      if (coordsStr) {
+        var parts = coordsStr.split(',');
+        var lat = parseFloat(parts[0]);
+        var lng = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          // 1. Spoof HTML5 Geolocation API
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition = function(success) {
+              setTimeout(function() {
+                success({
+                  coords: {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: 100,
+                    altitude: null,
+                    altitudeAccuracy: null,
+                    heading: null,
+                    speed: null
+                  },
+                  timestamp: Date.now()
+                });
+              }, 0);
+            };
+            navigator.geolocation.watchPosition = function(success) {
+              setTimeout(function() {
+                success({
+                  coords: {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: 100,
+                    altitude: null,
+                    altitudeAccuracy: null,
+                    heading: null,
+                    speed: null
+                  },
+                  timestamp: Date.now()
+                });
+              }, 0);
+              return 1;
+            };
+          }
+
+          // 2. Queue setting location on GPT pubads when loaded
+          window.googletag = window.googletag || {};
+          window.googletag.cmd = window.googletag.cmd || [];
+          window.googletag.cmd.push(function() {
+            if (window.googletag.pubads) {
+              window.googletag.pubads().setLocation(lat, lng);
+              
+              // 3. Dynamic targeting interceptor for geo/country keys
+              if (country) {
+                var originalSetTargeting = window.googletag.pubads().setTargeting;
+                window.googletag.pubads().setTargeting = function(key, val) {
+                  var k = key.toLowerCase();
+                  if (k === 'nn_geo' || k === 'geo' || k === 'country') {
+                    val = [country];
+                  }
+                  return originalSetTargeting.call(window.googletag.pubads(), key, val);
+                };
+              }
+            }
+          });
+        }
+      }
+    } catch(e) {
+      console.error('Error in location spoofing pre-paint script:', e);
+    }
+  })();
+  <\/script>
+  `;
 
   // -- Head Script (the actually-executed script) --
   let stagingHeadScriptCode = ''
@@ -109,25 +192,30 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
               <b>Ad slot Size:</b> ${sizesDisplayString}
               ${targetingString ? '<br><b>Custom Targeting:</b> ' + escHtml(targetingString) : ''}
               <div class="asInfo as-info-wrapper" id="asInfo-wrapper${slotDisplayNumber}">
-                <span class="hidden-element" id="asinfo${slotDisplayNumber}">
-                  <dfn><b>Advertiser ID:</b> <em id="aid${slotDisplayNumber}"></em></dfn>
-                  - <dfn><b>Campaign ID:</b> <em id="cmid${slotDisplayNumber}"></em></dfn>
-                  - <dfn><b>Line Item ID:</b> <em id="lid${slotDisplayNumber}"></em></dfn>
-                  - <dfn><b>Creative ID:</b> <em id="cid${slotDisplayNumber}"></em></dfn>
-                  - <dfn><b>Response Size:</b> <em id="sz${slotDisplayNumber}"></em></dfn>
-                  <br>
-                  <dfn class="alert oop info-margin hidden-element" id="oopnote${slotDisplayNumber}">
-                    <b>Attention:</b> Out-of-Page elements have been detected at the top of the body.
-                  </dfn>
-                  <dfn class="info-margin"><b>Query ID:</b> <em id="qid${slotDisplayNumber}"></em></dfn>
-                </span>
+                <div class="as-info-grid hidden-element" id="asinfo${slotDisplayNumber}">
+                  <div class="as-info-item"><b>Advertiser ID:</b> <em id="aid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('aid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
+                  <div class="as-info-item"><b>Campaign ID:</b> <em id="cmid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('cmid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
+                  <div class="as-info-item"><b>Line Item ID:</b> <em id="lid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('lid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
+                  <div class="as-info-item"><b>Creative ID:</b> <em id="cid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('cid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
+                  <div class="as-info-item"><b>Response Size:</b> <em id="sz${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('sz${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
+                </div>
+                <div class="as-info-query hidden-element" id="asinfoquery${slotDisplayNumber}">
+                  <b>Query ID:</b> <em id="qid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('qid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </div>
+                <div class="alert oop info-margin hidden-element" id="oopnote${slotDisplayNumber}">
+                  <b>Attention:</b> Out-of-Page elements have been detected at the top of the body.
+                </div>
                 <em class="hidden-element" id="noad${slotDisplayNumber}"><br><b>No Ad Returned!</b></em>
-                <dfn class="info-margin noad hidden-element" id="noadQID${slotDisplayNumber}"><b>Query ID:</b> <em id="noadqid${slotDisplayNumber}"></em></dfn>
+                <div class="as-info-query hidden-element noad" id="noadQID${slotDisplayNumber}"><b>Query ID:</b> <em id="noadqid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('noadqid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
                 <span class="hidden-element" id="backfill${slotDisplayNumber}">
                   <br><b>Ad rendered via AdSense/AdX backfill.</b>
-                  <dfn class="info-margin"><b>Rendered Size:</b> <em id="backfillsz${slotDisplayNumber}"></em></dfn>
-                  <dfn class="info-margin">No Ad Manager line-item details are available for backfill creatives.</dfn>
-                  <dfn class="info-margin"><b>Query ID:</b> <em id="backfillqid${slotDisplayNumber}"></em></dfn>
+                  <div class="as-info-grid-backfill">
+                    <div class="as-info-item"><b>Rendered Size:</b> <em id="backfillsz${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('backfillsz${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
+                  </div>
+                  <div class="as-info-query">
+                    <b>Query ID:</b> <em id="backfillqid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('backfillqid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  </div>
+                  <div class="as-info-note">No Ad Manager line-item details are available for backfill creatives.</div>
                 </span>
               </div>
             </div>`
@@ -220,7 +308,7 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     <p class="vast-tag-title"><b>Video Tag (VAST) URL:</b></p>
     <a href="${generatedVastUrl}" target="_blank" class="vast-tag-link">${generatedVastUrl}</a>
     <div class="vast-tag-btn-box">
-      <a href="https://developers.google.com/interactive-media-ads/docs/sdks/html5/client-side/vast_inspector?tag=${encodeURIComponent(generatedVastUrl)}" target="_blank" class="vast-tag-btn">VAST Inspector</a>
+      <a href="https://googleads.github.io/googleads-ima-html5/vsi/?tag=${encodeURIComponent(generatedVastUrl)}" target="_blank" class="vast-tag-btn">VAST Inspector</a>
     </div>
   </div>`
   }
@@ -243,8 +331,13 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     : `\n<scr` +
       `ipt>window.googletag = window.googletag || {cmd: []};\ngoogletag.cmd.push(function(){ if (googletag.disablePublisherConsole) googletag.disablePublisherConsole(); });<\/scr` +
       `ipt>`
+  // Open the console on a short delay. Codeless/auto ad units (Anchor, Web
+  // Interstitial, Side Rail) are requested by GPT at enableServices time and are
+  // SKIPPED if a fixed/sticky element already exists — and the console panel is
+  // itself a fixed element. Delaying openConsole lets those codeless units get
+  // requested first, so you can see them AND the console.
   const publisherConsoleScriptCode = options.pubConsole
-    ? `\n<scr` + `ipt>googletag.cmd.push(function(){googletag.openConsole();});<\/scr` + `ipt>`
+    ? `\n<scr` + `ipt>googletag.cmd.push(function(){ window.setTimeout(function(){ googletag.openConsole(); }, 3000); });<\/scr` + `ipt>`
     : ''
 
   // On the standalone /testpage route, reload when the app pushes new settings
@@ -277,6 +370,12 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
 
     bodyContent = `
   <div class="staging-container" id="DFPTagsController" style="max-width: 100%; margin: 0; background: ${isDark ? '#18181b' : '#fff'}; color: ${isDark ? '#f4f4f5' : '#333'}; padding: 10px; border: none; box-shadow: none;">
+    <div style="font-size: 13px; line-height: 1.5; margin-bottom: 12px; font-family: sans-serif; border-bottom: 1px solid ${isDark ? '#27272a' : '#e0e0e0'}; padding-bottom: 12px;">
+      <p style="margin: 0 0 6px 0; font-size: 15px;"><b>Network ID: ${networkDisplayLabel}</b></p>
+      <b>Tag type:</b> ${tagTypeLabel}<br>
+      <b>Request type:</b> ${requestTypeLabel}
+      ${settingsInfoHtml ? '<br>' + settingsInfoHtml : ''}
+    </div>
     ${finalBodyMarkup}
   </div>
   ${previewHeightScript}`
@@ -285,7 +384,103 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     const finalHeaderCode = state.customHeaderCode !== null ? state.customHeaderCode : rawHeaderScriptCode
     const finalBodyCode = state.customBodyCode !== null ? state.customBodyCode : rawBodyScriptCode
 
+    const cleanGeo = state.geolocationCoordinates || ''
+    const locationOptions = [
+      { label: 'No Spoofing (Default)', value: '', country: '' },
+      { label: '🇺🇸 United States (New York)', value: '40.7128,-74.0060', country: 'US' },
+      { label: '🇬🇧 United Kingdom (London)', value: '51.5074,-0.1278', country: 'GB' },
+      { label: '🇮🇳 India (Delhi)', value: '28.6139,77.2090', country: 'IN' },
+      { label: '🇩🇪 Germany (Berlin)', value: '52.5200,13.4050', country: 'DE' },
+      { label: '🇯🇵 Japan (Tokyo)', value: '35.6762,139.6503', country: 'JP' },
+      { label: '🇦🇺 Australia (Sydney)', value: '-33.8688,151.2093', country: 'AU' }
+    ]
+
+    const isPredefined = locationOptions.some(o => o.value === cleanGeo)
+    if (cleanGeo && !isPredefined) {
+      const countryCode = state.geolocationCountry || ''
+      locationOptions.push({
+        label: `📍 Custom (${cleanGeo}${countryCode ? ' - ' + countryCode : ''})`,
+        value: cleanGeo,
+        country: countryCode
+      })
+    }
+
+    locationOptions.push({ label: '⚙️ Custom Location...', value: 'custom', country: '' })
+
+    const selectedOpt = locationOptions.find(o => o.value === cleanGeo) || locationOptions[0]
+
+    const selectHtml = `
+      <select class="select-location" onchange="changeSpoofedLocation(this)" data-prev="${selectedOpt.value ? `${selectedOpt.value}|${selectedOpt.country}` : ''}">
+        ${locationOptions.map(o => {
+          const valStr = o.value === 'custom' ? 'custom' : (o.value ? `${o.value}|${o.country}` : '')
+          const selected = o.value === selectedOpt.value ? 'selected' : ''
+          return `<option value="${valStr}" ${selected}>${o.label}</option>`
+        }).join('')}
+      </select>
+    `
+
+    const headerToolbarHtml = `
+      <div class="testpage-header">
+        <div class="testpage-header-left">
+          <a href="/" class="testpage-logo">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            Back to Home
+          </a>
+        </div>
+        <div class="testpage-header-right">
+          <span style="font-size: 11px; color: ${isDark ? '#71717a' : '#64748b'}; font-weight: 500; font-family: sans-serif;">Spoof Location:</span>
+          ${selectHtml}
+          <button class="btn-header-action" onclick="location.reload()">
+            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+    `
+
     bodyContent = `
+  ${headerToolbarHtml}
+  
+  <div id="custom-geo-modal" class="geo-modal-overlay hidden-element">
+    <div class="geo-modal-content">
+      <div class="geo-modal-header">
+        <h3>Custom Geolocation Spoofing</h3>
+        <button class="geo-modal-close" onclick="closeGeoModal()">&times;</button>
+      </div>
+      <div class="geo-modal-body">
+        <div class="geo-modal-field">
+          <label>Search Location Name</label>
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <input type="text" id="modal-geo-search" placeholder="e.g. US - Washington or London" style="flex: 1;" onkeydown="if(event.key === 'Enter') searchLocationName()" />
+            <button class="btn-geo-detect btn-geo-search" onclick="searchLocationName()">
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin-right:4px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              Search
+            </button>
+          </div>
+          <div id="geo-search-result" class="geo-search-result hidden-element"></div>
+        </div>
+        <div class="geo-modal-field">
+          <label>GPS Coordinates (latitude,longitude)</label>
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <input type="text" id="modal-geo-coords" placeholder="e.g. 48.8566,2.3522" style="flex: 1;" />
+            <button class="btn-geo-detect" onclick="detectUserLocation()">
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><path d="M2 12h20"></path></svg>
+              Auto Detect
+            </button>
+          </div>
+        </div>
+        <div class="geo-modal-field">
+          <label>Country Code (e.g. US, GB, FR)</label>
+          <input type="text" id="modal-geo-country" placeholder="e.g. FR" maxlength="2" style="width: 100%;" />
+        </div>
+        <div class="geo-modal-actions">
+          <button class="btn-geo-cancel" onclick="closeGeoModal()">Cancel</button>
+          <button class="btn-geo-submit" onclick="submitGeoModal()">Apply & Refresh</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="staging-container" id="DFPTagsController">
     <p id="stage-title"><b>Network ID: ${networkDisplayLabel}</b></p>
     <br>
@@ -299,11 +494,44 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     ${vastDisplayBlockHtml}
     ${finalBodyMarkup}
     <hr>
-    <div class="gptcode">
-      <p>HEAD Tag</p>
-      <pre>${highlightCode(finalHeaderCode)}</pre>
-      <p>BODY Tags</p>
-      <pre>${highlightCode(finalBodyCode)}</pre>
+    <div class="code-panel-card">
+      <div class="code-panel-header">
+        <span class="code-panel-title">
+          GPT &lt;HEAD&gt; code
+          ${state.customHeaderCode !== null ? '<span class="manual-badge" title="Manually edited">Manual edit</span>' : ''}
+        </span>
+        <div class="code-panel-actions">
+          ${state.customHeaderCode !== null ? `<button class="btn-ghost" onclick="resetCode('customHeaderCode')">Resume Auto-Sync</button>` : ''}
+          <button class="btn-ghost" id="edit-btn-header" onclick="toggleEdit('header', 'customHeaderCode')">Edit</button>
+          <button class="btn-ghost" onclick="copyRawCode('header')">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
+        </div>
+      </div>
+      <div class="code-panel-body">
+        <pre id="pre-header" class="code-panel-pre">${highlightCode(finalHeaderCode)}</pre>
+        <textarea id="textarea-header" class="code-panel-textarea hidden-element" spellcheck="false">${escHtml(finalHeaderCode)}</textarea>
+      </div>
+    </div>
+
+    <div class="code-panel-card" style="margin-top: 16px;">
+      <div class="code-panel-header">
+        <span class="code-panel-title">
+          Adslots &lt;BODY&gt; code
+          ${state.customBodyCode !== null ? '<span class="manual-badge" title="Manually edited">Manual edit</span>' : ''}
+        </span>
+        <div class="code-panel-actions">
+          ${state.customBodyCode !== null ? `<button class="btn-ghost" onclick="resetCode('customBodyCode')">Resume Auto-Sync</button>` : ''}
+          <button class="btn-ghost" id="edit-btn-body" onclick="toggleEdit('body', 'customBodyCode')">Edit</button>
+          <button class="btn-ghost" onclick="copyRawCode('body')">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
+        </div>
+      </div>
+      <div class="code-panel-body">
+        <pre id="pre-body" class="code-panel-pre">${highlightCode(finalBodyCode)}</pre>
+        <textarea id="textarea-body" class="code-panel-textarea hidden-element" spellcheck="false">${escHtml(finalBodyCode)}</textarea>
+      </div>
     </div>
   </div>`
   }
@@ -314,7 +542,7 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   --><head>
   <title>Network ID: ${networkDisplayLabel} - ${tagTypeLabel} - ${requestTypeLabel}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0, minimum-scale=1.0">
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20fill%3D%22%23246FDB%22%20role%3D%22img%22%20viewBox%3D%220%200%2024%2024%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Ctitle%3EGoogle%20Tag%20Manager%3C%2Ftitle%3E%3Cpath%20d%3D%22M12.003%200a3%203%200%200%200-2.121%205.121l6.865%206.865-4.446%204.541%201.745%201.836a3.432%203.432%200%200%201%20.7.739l.012.011-.001.002a3.432%203.432%200%200%201%20.609%201.953%203.432%203.432%200%200%201-.09.78l7.75-7.647c.031-.029.067-.05.098-.08.023-.023.038-.052.06-.076a2.994%202.994%200%200%200-.06-4.166l-9-9A2.99%202.99%200%200%200%2012.003%200zM8.63%202.133L.88%209.809a2.998%202.998%200%200%200%200%204.238l7.7%207.75a3.432%203.432%200%200%201-.077-.729%203.432%203.432%200%200%201%203.431-3.431%203.432%203.432%200%200%201%20.826.101l-5.523-5.81%204.371-4.373-2.08-2.08c-.903-.904-1.193-2.183-.898-3.342zm3.304%2016.004a2.932%202.932%200%200%200-2.931%202.931A2.932%202.932%200%200%200%2011.934%2024a2.932%202.932%200%200%200%202.932-2.932%202.932%202.932%200%200%200-2.932-2.931z%22%2F%3E%3C%2Fsvg%3E">
   <style>
     body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; margin: 0; padding: 0; background: ${isDark ? '#09090b' : '#fafafa'}; color: ${isDark ? '#f4f4f5' : '#333'}; }
     .ad-slot-container { display: inline-block; margin: 16px 0; }
@@ -329,9 +557,87 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     .info-margin { display: block; margin-top: 4px; }
     .alert.oop { background: ${isDark ? '#3f2203' : '#fff3e0'}; border: 1px solid ${isDark ? '#7c2d12' : '#ffcc80'}; padding: 8px 10px; color: ${isDark ? '#fdba74' : '#e65100'}; margin-top: 8px; border-radius: 2px; font-size: 11px; }
     .noad { color: #d32f2f; }
-    .gptcode { margin-top: 20px; border-top: 1px solid ${isDark ? '#27272a' : '#e0e0e0'}; padding-top: 16px; }
-    .gptcode p { font-weight: bold; font-size: 14px; color: ${isDark ? '#f4f4f5' : '#333'}; margin: 14px 0 6px; }
-    .gptcode pre { background: ${isDark ? '#09090b' : '#f5f5f5'}; border: 1px solid ${isDark ? '#27272a' : '#e0e0e0'}; padding: 14px; font-size: 12px; font-family: 'Courier New', Courier, monospace; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; border-radius: 2px; line-height: 1.6; color: ${isDark ? '#e4e4e7' : '#333'}; }
+    .code-panel-card {
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 16px;
+      background: ${isDark ? '#09090b' : '#fff'};
+    }
+    .code-panel-header {
+      background: #15803d;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+      font-family: sans-serif;
+    }
+    .code-panel-title {
+      font-weight: bold;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .manual-badge {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      padding: 1px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .code-panel-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      color: #fff;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      cursor: pointer;
+      font-family: sans-serif;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .code-panel-body {
+      position: relative;
+    }
+    .code-panel-pre {
+      margin: 0;
+      padding: 14px;
+      font-size: 11.5px;
+      font-family: 'Courier New', Courier, monospace;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.6;
+      color: ${isDark ? '#e4e4e7' : '#334155'};
+      max-height: 380px;
+    }
+    .code-panel-textarea {
+      width: 100%;
+      height: 300px;
+      border: none;
+      padding: 14px;
+      font-size: 11.5px;
+      font-family: 'Courier New', Courier, monospace;
+      background: ${isDark ? '#18181b' : '#f8fafc'};
+      color: ${isDark ? '#e4e4e7' : '#334155'};
+      outline: none;
+      resize: vertical;
+      box-sizing: border-box;
+      display: block;
+    }
     .code-line-num { display: inline-block; width: 30px; text-align: right; padding-right: 10px; color: ${isDark ? '#71717a' : '#999'}; user-select: none; }
     .code-syntax-comment { color: ${isDark ? '#4ade80' : '#15803d'}; font-style: italic; }
     .code-syntax-string { color: ${isDark ? '#f87171' : '#b91c1c'}; }
@@ -348,10 +654,32 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       color: ${isDark ? '#93c5fd' : '#0d47a1'};
     }
     .as-info-wrapper {
-      width: 322px;
+      max-width: 100%;
+      width: fit-content;
+      box-sizing: border-box;
+    }
+    .as-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 16px;
+    }
+    .as-info-item {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .as-info-note {
+      font-size: 11px;
+      margin-top: 6px;
+      color: ${isDark ? '#a1a1aa' : '#666'};
+    }
+    .as-info-query {
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 6px;
+      word-break: break-all;
     }
     .hidden-element {
-      display: none;
+      display: none !important;
     }
     .vast-tag-container {
       background: ${isDark ? '#450a0a' : '#ffebee'};
@@ -398,6 +726,244 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       color: ${isDark ? '#d8b4fe' : '#7b1fa2'};
       line-height: 1.6;
     }
+    .copy-icon {
+      vertical-align: middle;
+      margin-left: 5px;
+      cursor: pointer;
+      opacity: ${isDark ? '0.75' : '0.5'};
+      color: ${isDark ? '#e4e4e7' : 'inherit'};
+      transition: opacity 0.15s ease, color 0.15s ease;
+      display: inline-block;
+    }
+    .copy-icon:hover {
+      opacity: 1;
+      color: #34d399;
+    }
+    .testpage-header {
+      background: ${isDark ? '#18181b' : '#ffffff'};
+      border-bottom: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: ${isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)'};
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .testpage-header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .testpage-header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .testpage-logo {
+      font-weight: 700;
+      font-size: 14px;
+      color: #15803d;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .btn-header-action {
+      background: ${isDark ? '#27272a' : '#f1f5f9'};
+      border: 1px solid ${isDark ? '#3f3f46' : '#e2e8f0'};
+      border-radius: 6px;
+      color: ${isDark ? '#f4f4f5' : '#334155'};
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: background 0.2s, color 0.2s;
+    }
+    .btn-header-action:hover {
+      background: ${isDark ? '#3f3f46' : '#e2e8f0'};
+      color: ${isDark ? '#ffffff' : '#0f172a'};
+    }
+    .select-location {
+      background: ${isDark ? '#27272a' : '#ffffff'};
+      border: 1px solid ${isDark ? '#3f3f46' : '#e2e8f0'};
+      border-radius: 6px;
+      color: ${isDark ? '#f4f4f5' : '#334155'};
+      padding: 6px 28px 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23888888' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 12px;
+    }
+    
+    /* Geolocation Modal Styles */
+    .geo-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .geo-modal-content {
+      background: ${isDark ? '#18181b' : '#ffffff'};
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 12px;
+      width: 90%;
+      max-width: 440px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      animation: geoModalFadeIn 0.2s ease-out;
+    }
+    @keyframes geoModalFadeIn {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .geo-modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .geo-modal-header h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: ${isDark ? '#f4f4f5' : '#1e293b'};
+    }
+    .geo-modal-close {
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      color: ${isDark ? '#a1a1aa' : '#64748b'};
+      line-height: 1;
+      padding: 4px;
+    }
+    .geo-modal-close:hover {
+      color: ${isDark ? '#f4f4f5' : '#0f172a'};
+    }
+    .geo-modal-body {
+      padding: 20px;
+    }
+    .geo-modal-field {
+      margin-bottom: 16px;
+    }
+    .geo-modal-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: ${isDark ? '#a1a1aa' : '#64748b'};
+      margin-bottom: 6px;
+      text-align: left;
+    }
+    .geo-modal-field input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: ${isDark ? '#09090b' : '#ffffff'};
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 6px;
+      color: ${isDark ? '#f4f4f5' : '#334155'};
+      padding: 8px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .geo-modal-field input[type="text"]:focus {
+      border-color: #15803d;
+    }
+    .btn-geo-detect {
+      background: ${isDark ? '#27272a' : '#f1f5f9'};
+      border: 1px solid ${isDark ? '#3f3f46' : '#e2e8f0'};
+      border-radius: 6px;
+      color: ${isDark ? '#f4f4f5' : '#334155'};
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .btn-geo-detect:hover {
+      background: ${isDark ? '#3f3f46' : '#e2e8f0'};
+    }
+    .geo-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 24px;
+    }
+    .btn-geo-cancel {
+      background: none;
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 6px;
+      color: ${isDark ? '#a1a1aa' : '#64748b'};
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-geo-cancel:hover {
+      background: ${isDark ? '#27272a' : '#f8fafc'};
+      color: ${isDark ? '#f4f4f5' : '#0f172a'};
+    }
+    .btn-geo-submit {
+      background: #15803d;
+      border: 1px solid #166534;
+      border-radius: 6px;
+      color: #ffffff;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-geo-submit:hover {
+      background: #166534;
+    }
+    .geo-search-result {
+      margin-top: 6px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      background: ${isDark ? 'rgba(22, 101, 52, 0.15)' : 'rgba(22, 163, 74, 0.08)'};
+      border: 1px solid ${isDark ? 'rgba(22, 163, 74, 0.3)' : 'rgba(22, 163, 74, 0.25)'};
+      color: ${isDark ? '#86efac' : '#15803d'};
+    }
+    .geo-search-result .geo-result-label {
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.7;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .geo-search-result .geo-result-name {
+      font-weight: 500;
+    }
+    .geo-search-result .geo-result-type {
+      opacity: 0.6;
+      font-size: 10.5px;
+      margin-left: 6px;
+    }
   </style>
 
   <scr` + `ipt src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"><\/scr` + `ipt>
@@ -421,10 +987,24 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     $('#cid'+ slotIndex).html(data.creativeId ? makeUrl(data.creativeId, creativeUrlPrefix) : 'N/A');
     $('#qid'+ slotIndex).html(data.qid ? makeUrl(data.qid, queryIdUrlPrefix) : 'N/A');
   }
+  function copyText(elementId) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var text = el.innerText || el.textContent;
+    if (!text || text === 'N/A') return;
+    navigator.clipboard.writeText(text).then(function() {
+      var originalColor = el.style.color;
+      el.style.color = '#34d399';
+      setTimeout(function() {
+        el.style.color = originalColor;
+      }, 800);
+    });
+  }
   <\/scr` + `ipt>
   <!-- End of DFP UI Links -->
 
   <scr` + `ipt>
+  var CITIES = ${JSON.stringify(MAJOR_CITIES)};
   var oopAlert = false;
   var adslotsEventData = [];
   var slotFilledState = {};
@@ -432,37 +1012,49 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   function checkOop(slotIndex){
     var elementIndex = $('#DFPTagsController').index();
     if (elementIndex > 0){
-      $('#oopnote' + slotIndex).show();
-      if(!oopAlert){
-        var injectedElements = [];
-        for (var i = 0; i < elementIndex; i++){
-          injectedElements.push($('body').children().eq(i)[0]);
+      var hasActualOopElement = false;
+      for (var i = 0; i < elementIndex; i++) {
+        var child = $('body').children().eq(i)[0];
+        if (child) {
+          var id = child.id || '';
+          if (id.indexOf('googletag_console') === -1 && id.indexOf('google_pubconsole') === -1) {
+            hasActualOopElement = true;
+          }
         }
-        console.group('\\n%cAttention:\\n ', 'font-size: 120%;font-weight:bold;color:red');
-        console.log('   The following Elements have been added to the page DOM\\n' +
-                    '   by one of the ads:\\n ');
-        console.log('   ', injectedElements);
-        console.log('   \\n' +
-                    '   This can indicate that one or more OOP Creatives have\\n' +
-                    '   been delivered and rendered on the page, but the elements\\n' +
-                    '   containing the creatives might be hidden from view.\\n\\n' +
-                    '   To make sure the OOP ads rendered correctly, please inspect\\n' +
-                    '   the above elements which should be found at the very top of\\n' +
-                    '   the BODY element on the top.window.'
-                   );
-        console.groupEnd();
       }
-      oopAlert = true;
+      if (hasActualOopElement) {
+        $('#oopnote' + slotIndex).show();
+        if(!oopAlert){
+          var injectedElements = [];
+          for (var i = 0; i < elementIndex; i++){
+            injectedElements.push($('body').children().eq(i)[0]);
+          }
+          console.group('\\n%cAttention:\\n ', 'font-size: 120%;font-weight:bold;color:red');
+          console.log('   The following Elements have been added to the page DOM\\n' +
+                      '   by one of the ads:\\n ');
+          console.log('   ', injectedElements);
+          console.log('   \\n' +
+                      '   This can indicate that one or more OOP Creatives have\\n' +
+                      '   been delivered and rendered on the page, but the elements\\n' +
+                      '   containing the creatives might be hidden from view.\\n\\n' +
+                      '   To make sure the OOP ads rendered correctly, please inspect\\n' +
+                      '   the above elements which should be found at the very top of\\n' +
+                      '   the BODY element on the top.window.'
+                     );
+          console.groupEnd();
+        }
+        oopAlert = true;
+      }
     }
   }
 
   function adslotsData(data) {
+    var adSlots = (typeof googletag !== 'undefined' && typeof googletag.pubads === 'function') ? googletag.pubads().getSlots() : [];
     adslotsEventData.push(data);
 
     var divId = (data.slot && typeof data.slot.getSlotElementId === 'function') ? data.slot.getSlotElementId() : '';
-    var lastDashIndex = divId.lastIndexOf('-');
-    var slotIndex = lastDashIndex !== -1 ? parseInt(divId.substring(lastDashIndex + 1)) : -1;
-    var slotDisplayNumber = isNaN(slotIndex) || slotIndex === -1 ? 1 : (slotIndex + 1);
+    var slotIndex = adSlots.indexOf(data.slot);
+    var slotDisplayNumber = slotIndex !== -1 ? (slotIndex + 1) : 1;
 
     console.group('%cAdslot: ' + slotDisplayNumber, 'font-size: 120%;font-weight:bold');
 
@@ -480,14 +1072,16 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
 
     // Reset visual states before applying this event's result, so stale state
     // from a prior call doesn't stick around alongside the new one.
-    $('#asinfo' + slotDisplayNumber).hide();
+    $('#asinfo' + slotDisplayNumber).addClass('hidden-element');
+    $('#asinfoquery' + slotDisplayNumber).addClass('hidden-element');
     $('#noad' + slotDisplayNumber).hide();
     $('#noadQID' + slotDisplayNumber).hide();
     $('#backfill' + slotDisplayNumber).hide();
 
     if (!data.isEmpty) {
       slotFilledState[slotDisplayNumber] = true;
-      $('#asinfo' + slotDisplayNumber).show();
+      $('#asinfo' + slotDisplayNumber).removeClass('hidden-element');
+      $('#asinfoquery' + slotDisplayNumber).removeClass('hidden-element');
       console.log('   %cAdvertiser ID:  ', 'font-style:italic', data.advertiserId);
       console.log('   %cCampaign   ID:  ', 'font-style:italic', data.campaignId);
       console.log('   %cLineItem   ID:  ', 'font-style:italic', data.lineItemId);
@@ -497,7 +1091,6 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       $('#lid' + slotDisplayNumber).text(data.lineItemId ? data.lineItemId : 'N/A');
       $('#cid' + slotDisplayNumber).text(data.creativeId ? data.creativeId : 'N/A');
       $('#sz' + slotDisplayNumber).text(data.size[0] + 'x' + data.size[1]);
-      $('#asInfo-wrapper' + slotDisplayNumber).width(data.size[0] >= 300 ? data.size[0] + 22 : 322);
       $('#qid' + slotDisplayNumber).text(queryId);
       data.qid = queryId;
 
@@ -528,7 +1121,7 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
             $('#backfillsz' + n).text(frame.offsetWidth + 'x' + frame.offsetHeight);
             $('#backfillqid' + n).text(qid);
             $('#backfill' + n).show();
-            $('#asInfo-wrapper' + n).width(frame.offsetWidth >= 300 ? frame.offsetWidth + 22 : 322);
+            // Wrapper will fit content automatically via CSS
           }
         }, 1500);
       })(slotDisplayNumber, queryId, divId);
@@ -536,14 +1129,291 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     console.log('   %cQuery      ID:  ', 'font-style:italic', queryId);
     console.groupEnd();
   }
+
+  function showToast(msg) {
+    var t = document.createElement('div');
+    t.style.position = 'fixed';
+    t.style.bottom = '20px';
+    t.style.right = '20px';
+    t.style.background = '#15803d';
+    t.style.color = '#fff';
+    t.style.padding = '10px 18px';
+    t.style.borderRadius = '4px';
+    t.style.boxShadow = '0 2px 10px rgba(0,0,0,0.25)';
+    t.style.fontFamily = 'sans-serif';
+    t.style.fontSize = '13px';
+    t.style.zIndex = '99999';
+    t.innerText = msg;
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 2000);
+  }
+
+  window.copyRawCode = function(type) {
+    var el = document.getElementById('textarea-' + type);
+    if (!el) return;
+    navigator.clipboard.writeText(el.value).then(function() {
+      showToast('Code copied to clipboard!');
+    }).catch(function() {
+      el.select();
+      document.execCommand('copy');
+      showToast('Code copied to clipboard!');
+    });
+  }
+
+  window.toggleEdit = function(type, configKey) {
+    var btn = document.getElementById('edit-btn-' + type);
+    var pre = document.getElementById('pre-' + type);
+    var textarea = document.getElementById('textarea-' + type);
+    if (!btn || !pre || !textarea) return;
+
+    var isEditing = btn.innerText === 'Save & Run';
+    if (!isEditing) {
+      pre.classList.add('hidden-element');
+      textarea.classList.remove('hidden-element');
+      btn.innerText = 'Save & Run';
+    } else {
+      var newCode = textarea.value;
+      var raw = localStorage.getItem('adTagTestPageConfig');
+      if (raw) {
+        try {
+          var config = JSON.parse(raw);
+          config.snapshot[configKey] = newCode;
+          localStorage.setItem('adTagTestPageConfig', JSON.stringify(config));
+          location.reload();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }
+
+  window.changeSpoofedLocation = function(selectEl) {
+    var val = selectEl.value;
+    if (val === 'custom') {
+      window.openGeoModal();
+      return;
+    }
+
+    var parts = val.split('|');
+    var coords = parts[0] || '';
+    var country = parts[1] || '';
+
+    var raw = localStorage.getItem('adTagTestPageConfig');
+    if (!raw) return;
+    try {
+      var config = JSON.parse(raw);
+      config.snapshot.geolocationCoordinates = coords;
+      config.snapshot.geolocationCountry = country;
+      
+      localStorage.setItem('adTagTestPageConfig', JSON.stringify(config));
+      localStorage.setItem('adTagTestPageConfigUpdateSource', 'location-spoof');
+      location.reload();
+    } catch (e) {
+      console.error('Failed to change spoofed location:', e);
+    }
+  }
+
+  window.openGeoModal = function() {
+    var raw = localStorage.getItem('adTagTestPageConfig');
+    var coords = '';
+    var country = '';
+    if (raw) {
+      try {
+        var config = JSON.parse(raw);
+        coords = config.snapshot.geolocationCoordinates || '';
+        country = config.snapshot.geolocationCountry || '';
+      } catch(e) {}
+    }
+    
+    document.getElementById('modal-geo-coords').value = coords;
+    document.getElementById('modal-geo-country').value = country;
+    document.getElementById('custom-geo-modal').classList.remove('hidden-element');
+  }
+
+  window.closeGeoModal = function() {
+    document.getElementById('custom-geo-modal').classList.add('hidden-element');
+    var selectEl = document.querySelector('.select-location');
+    if (selectEl) {
+      selectEl.value = selectEl.getAttribute('data-prev') || '';
+    }
+  }
+
+  window.submitGeoModal = function() {
+    var coords = document.getElementById('modal-geo-coords').value.trim();
+    var country = document.getElementById('modal-geo-country').value.trim().toUpperCase();
+
+    var raw = localStorage.getItem('adTagTestPageConfig');
+    if (!raw) return;
+    try {
+      var config = JSON.parse(raw);
+      config.snapshot.geolocationCoordinates = coords;
+      config.snapshot.geolocationCountry = country;
+      
+      localStorage.setItem('adTagTestPageConfig', JSON.stringify(config));
+      localStorage.setItem('adTagTestPageConfigUpdateSource', 'location-spoof');
+      location.reload();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  window.detectUserLocation = function() {
+    var btn = document.querySelector('.btn-geo-detect');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerText = 'Detecting...';
+    
+    fetch('https://ipapi.co/json/')
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.latitude && data.longitude) {
+          document.getElementById('modal-geo-coords').value = data.latitude + ',' + data.longitude;
+          document.getElementById('modal-geo-country').value = data.country_code || '';
+        } else {
+          alert('Could not detect location from IP.');
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        return fetch('https://ip-api.com/json/')
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.lat && data.lon) {
+              document.getElementById('modal-geo-coords').value = data.lat + ',' + data.lon;
+              document.getElementById('modal-geo-country').value = data.countryCode || '';
+            } else {
+              alert('Could not detect location from IP.');
+            }
+          });
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      });
+  }
+
+  window.searchLocationName = function() {
+    var query = document.getElementById('modal-geo-search').value.trim();
+    if (!query) {
+      alert('Please enter a location name to search.');
+      return;
+    }
+
+    var btn = document.querySelector('.btn-geo-search');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Searching...';
+    var resultEl = document.getElementById('geo-search-result');
+
+    // Local fuzzy search first
+    var q = query.toLowerCase();
+    var matches = CITIES.filter(function(city) {
+      var label = (city.n + ' ' + city.c).toLowerCase();
+      // Check if all query words appear in the label
+      var words = q.split(/[\s,\-]+/).filter(Boolean);
+      return words.every(function(w) { return label.indexOf(w) !== -1; });
+    });
+
+    if (matches.length > 0) {
+      // Use the best match (first result)
+      var best = matches[0];
+      document.getElementById('modal-geo-coords').value = best.lat.toFixed(6) + ',' + best.lng.toFixed(6);
+      document.getElementById('modal-geo-country').value = best.c;
+
+      // Show result with alternatives if multiple matches
+      var html = '<span class="geo-result-label">Matched Location</span>';
+      html += '<span class="geo-result-name">' + best.n + ', ' + best.c + '</span>';
+      html += '<span class="geo-result-type">(local database)</span>';
+      if (matches.length > 1) {
+        html += '<div style="margin-top:6px; font-size:10.5px; opacity:0.7;">';
+        html += 'Also found: ';
+        var alts = matches.slice(1, 6);
+        html += alts.map(function(m, i) {
+          return '<span class="geo-alt-city" data-idx="' + i + '" data-lat="' + m.lat.toFixed(6) + '" data-lng="' + m.lng.toFixed(6) + '" data-cc="' + m.c + '" data-name="' + m.n + ', ' + m.c + '" style="color:inherit; text-decoration:underline; cursor:pointer;">' + m.n + ', ' + m.c + '</span>';
+        }).join(' \u00b7 ');
+        if (matches.length > 6) html += ' \u00b7 +' + (matches.length - 6) + ' more';
+        html += '</div>';
+      }
+      resultEl.innerHTML = html;
+      resultEl.style.borderColor = '';
+      resultEl.style.background = '';
+      resultEl.style.color = '';
+      resultEl.classList.remove('hidden-element');
+      // Attach click handlers for alternative cities
+      var altSpans = resultEl.querySelectorAll('.geo-alt-city');
+      altSpans.forEach(function(span) {
+        span.addEventListener('click', function() {
+          document.getElementById('modal-geo-coords').value = span.getAttribute('data-lat') + ',' + span.getAttribute('data-lng');
+          document.getElementById('modal-geo-country').value = span.getAttribute('data-cc');
+          resultEl.querySelector('.geo-result-name').textContent = span.getAttribute('data-name');
+        });
+      });
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+
+    // Fallback: Nominatim API for locations not in local database
+    fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) + '&format=json&limit=1&addressdetails=1')
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data && data.length > 0) {
+          var result = data[0];
+          document.getElementById('modal-geo-coords').value = parseFloat(result.lat).toFixed(6) + ',' + parseFloat(result.lon).toFixed(6);
+          if (result.address && result.address.country_code) {
+            document.getElementById('modal-geo-country').value = result.address.country_code.toUpperCase();
+          } else {
+            document.getElementById('modal-geo-country').value = '';
+          }
+          var typeLabel = result.type ? result.type.replace(/_/g, ' ') : '';
+          resultEl.innerHTML = '<span class="geo-result-label">Resolved Location (API)</span>' +
+            '<span class="geo-result-name">' + (result.display_name || 'Unknown') + '</span>' +
+            (typeLabel ? '<span class="geo-result-type">(' + typeLabel + ')</span>' : '');
+          resultEl.style.borderColor = '';
+          resultEl.style.background = '';
+          resultEl.style.color = '';
+          resultEl.classList.remove('hidden-element');
+        } else {
+          resultEl.innerHTML = '<span class="geo-result-label">Not Found</span>' +
+            '<span class="geo-result-name">No results for "' + query + '". Try a different spelling.</span>';
+          resultEl.style.borderColor = '${isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.25)'}';
+          resultEl.style.background = '${isDark ? 'rgba(127, 29, 29, 0.15)' : 'rgba(239, 68, 68, 0.08)'}';
+          resultEl.style.color = '${isDark ? '#fca5a5' : '#dc2626'}';
+          resultEl.classList.remove('hidden-element');
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        alert('Failed to search location.');
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      });
+  }
+
+  window.resetCode = function(configKey) {
+    var raw = localStorage.getItem('adTagTestPageConfig');
+    if (raw) {
+      try {
+        var config = JSON.parse(raw);
+        config.snapshot[configKey] = null;
+        localStorage.setItem('adTagTestPageConfig', JSON.stringify(config));
+        location.reload();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
   <\/scr` + `ipt>
 
   ${consoleDisableScriptCode}
+  ${locationSpoofPrepaintScriptCode}
   ${stagingHeadScriptCode}
   ${publisherConsoleScriptCode}
   ${liveReloadScriptCode}
 </head>
-<body>
+<body id="ad-tag-generator-preview-body">
   ${bodyContent}
 </body>
 </html>`

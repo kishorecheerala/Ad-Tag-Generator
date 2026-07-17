@@ -39,6 +39,41 @@ export function LiveAdsPanel() {
     return () => window.removeEventListener('message', onMessage)
   }, [])
 
+  useEffect(() => {
+    // When the staging HTML changes (triggering an iframe reload), or when
+    // this preview panel is unmounted, search the parent window for any
+    // DOM nodes injected by GPT (anchors, interstitials, console frames, etc.)
+    // and destroy them to prevent "Format already created" errors on the next load.
+    return () => {
+      const selectors = [
+        'iframe[name^="google_ads_iframe"]',
+        'iframe[id^="google_ads_iframe"]',
+        'div[id^="google_ads_iframe"]',
+        'div[id^="googletag_"]',
+        'div[class*="googletag"]',
+        'iframe[src*="doubleclick.net"]',
+        'iframe[src*="googlesyndication.com"]',
+        '.google-anchor-ad',
+        'google-handle',
+        '#googletag-open-console-tab',
+        '#googletag-console-outer',
+      ]
+      selectors.forEach((selector) => {
+        try {
+          const elements = document.querySelectorAll(selector)
+          elements.forEach((el) => el.remove())
+        } catch (e) {
+          console.warn('Error cleaning up GPT element from parent window:', e)
+        }
+      })
+      // Clear global references to prevent slot definition leakage
+      try {
+        delete (window.top as any).googletag
+        delete (window.top as any).google_js_in_page_html
+      } catch {}
+    }
+  }, [srcDoc])
+
   return (
     <Card>
       <CardHeader>

@@ -57,6 +57,7 @@ export interface TagSettingsState {
   ampValidation: boolean
   ampPlaceholders: boolean
   geolocationCoordinates: string
+  geolocationCountry: string
   contentExclusion: string
   publisherProvidedId: string
 
@@ -64,6 +65,7 @@ export interface TagSettingsState {
   video: VideoConfig
 
   pageTargeting: KeyValue[]
+  pageUrl: string
 
   sizeMappingEnabled: boolean
   sizeMappingName: string

@@ -20,6 +20,7 @@ export function TagSettingsCard() {
   const parentNetwork = useTagSettingsStore((s) => s.parentNetwork)
   const childNetwork = useTagSettingsStore((s) => s.childNetwork)
   const pageTargeting = useTagSettingsStore((s) => s.pageTargeting)
+  const pageUrl = useTagSettingsStore((s) => s.pageUrl)
   const isSRA = useTagSettingsStore((s) => s.isSingleRequestArchitectureEnabled)
   const advancedPanelOpen = useTagSettingsStore((s) => s.advancedPanelOpen)
   const sizeMappingPanelOpen = useTagSettingsStore((s) => s.sizeMappingPanelOpen)
@@ -31,8 +32,6 @@ export function TagSettingsCard() {
   const setSizeMappingPanelOpen = useTagSettingsStore((s) => s.setSizeMappingPanelOpen)
   const setAdsensePanelOpen = useTagSettingsStore((s) => s.setAdsensePanelOpen)
   const setVideoPanelOpen = useTagSettingsStore((s) => s.setVideoPanelOpen)
-  const loadBasicSample = useTagSettingsStore((s) => s.loadBasicSample)
-  const loadAdvancedSample = useTagSettingsStore((s) => s.loadAdvancedSample)
   const resetTagSettings = useTagSettingsStore((s) => s.resetTagSettings)
 
   return (
@@ -66,13 +65,14 @@ export function TagSettingsCard() {
               </SelectContent>
             </Select>
           </div>
+
           <div className="flex flex-col gap-1">
             <Label>Parent Network ID *</Label>
             <ClearableInput
               value={parentNetwork}
               onChange={(e) => setField('parentNetwork', e.target.value)}
               onClear={() => setField('parentNetwork', '')}
-              placeholder="e.g. 82109981"
+              placeholder="e.g. 123"
               className="font-mono"
             />
           </div>
@@ -82,10 +82,20 @@ export function TagSettingsCard() {
               value={childNetwork}
               onChange={(e) => setField('childNetwork', e.target.value)}
               onClear={() => setField('childNetwork', '')}
-              placeholder="e.g. 22880237682"
+              placeholder="e.g. 456"
               className="font-mono"
             />
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <Label>Page URL <code>googletag.pubads().set('page_url)</code></Label>
+          <ClearableInput
+            value={pageUrl}
+            onChange={(e) => setField('pageUrl', e.target.value)}
+            onClear={() => setField('pageUrl', '')}
+            placeholder="e.g. www.google.com"
+          />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -101,15 +111,7 @@ export function TagSettingsCard() {
           <ToggleRow label="Video Tag (VAST)" checked={videoPanelOpen} onCheckedChange={setVideoPanelOpen} />
         </div>
 
-        <div className="flex items-center gap-3 text-xs">
-          <button type="button" onClick={loadBasicSample} className="font-semibold text-primary hover:underline">
-            Basic Sample
-          </button>
-          <span className="text-muted-foreground">|</span>
-          <button type="button" onClick={loadAdvancedSample} className="font-semibold text-primary hover:underline">
-            Advanced Sample
-          </button>
-        </div>
+        {/* Removed samples block */}
       </CardContent>
     </Card>
   )
