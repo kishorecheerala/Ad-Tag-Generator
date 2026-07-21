@@ -142,7 +142,13 @@ export function LivePreviewFrame() {
       slot.addService(googletag.pubads());
     }
 
-    var urlParams = new URLSearchParams(window.location.search);
+    // Set full top-level page URL on GPT pubads service
+    try {
+      var topUrl = (window.top && window.top.location && window.top.location.href) ? window.top.location.href : window.location.href;
+      googletag.pubads().set('page_url', topUrl);
+    } catch(e) {}
+
+    var urlParams = new URLSearchParams(window.location.search || (window.top ? window.top.location.search : ''));
     var previewToken = urlParams.get('google_preview') || urlParams.get('googlesitepreview');
     if (previewToken) {
       googletag.pubads().setTargeting('google_preview', previewToken);
