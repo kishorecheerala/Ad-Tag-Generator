@@ -34,6 +34,8 @@ export function LivePreviewFrame() {
   const macroSubstitutions = useCreativePreviewStore((s) => s.macroSubstitutions)
   const liveSiteConfig = useCreativePreviewStore((s) => s.liveSiteConfig)
   const runToken = useCreativePreviewStore((s) => s.runToken)
+  const searchParams = new URLSearchParams(window.location.search)
+  const activeToken = searchParams.get('google_preview') || searchParams.get('googlesitepreview') || ''
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [previewHeight, setPreviewHeight] = useState(() => Math.max(320, (window.innerHeight - 140) * 0.8))
@@ -387,6 +389,7 @@ ${finalJs}
 
   // Write content via contentDocument for same-origin execution
   useEffect(() => {
+    if (formatMode === 'on_site_gam') return
     if (!iframeRef.current) return
     const iframe = iframeRef.current
     try {
@@ -399,7 +402,7 @@ ${finalJs}
     } catch (e) {
       console.error('Failed to write iframe content:', e)
     }
-  }, [htmlContent])
+  }, [htmlContent, formatMode])
 
   useEffect(() => {
     clearConsole()
@@ -441,11 +444,11 @@ ${finalJs}
               onClick={() => {
                 const lineItemId = liveSiteConfig.lineItemId || '7322921650'
                 const creativeId = liveSiteConfig.creativeId || '138561712827'
-                const adUnitId = liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels results'
+                const adUnitId = liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
                 window.open(
-                  `/testpage?google_preview=1&iu=${encodeURIComponent(
+                  `/testpage?google_preview=${activeToken}&iu=${encodeURIComponent(
                     adUnitId
-                  )}&lineItemId=${lineItemId}&creativeId=${creativeId}`,
+                  )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || '160x600'}`,
                   '_blank'
                 )
               }}
@@ -485,6 +488,15 @@ ${finalJs}
           >
             <iframe
               ref={iframeRef}
+              src={
+                formatMode === 'on_site_gam'
+                  ? `/testpage?google_preview=${activeToken}&iu=${encodeURIComponent(
+                      liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
+                    )}&lineItemId=${liveSiteConfig.lineItemId || '7322921650'}&creativeId=${
+                      liveSiteConfig.creativeId || '138561712827'
+                    }&sz=${liveSiteConfig.sizeTargeting || '160x600'}`
+                  : undefined
+              }
               title="Creative live preview"
               className="h-full w-full border-0 bg-transparent"
             />
