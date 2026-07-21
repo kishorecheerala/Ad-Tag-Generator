@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Moon, Sun, Share2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ function App() {
   const activeTab = useUiStore((s) => s.activeTab)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const snapshot = useTagSettingsSnapshot()
+  const isRouteInitialized = useRef(false)
 
 
 
@@ -205,6 +206,7 @@ function App() {
       } else if (window.location.pathname !== cleanPath || window.location.hash !== '' || window.location.search !== '') {
         window.history.replaceState(null, '', cleanPath)
       }
+      isRouteInitialized.current = true
     }
 
     handleUrlRouting()
@@ -215,6 +217,8 @@ function App() {
 
   // Push new state to URL pathname on active tab store adjustments
   useEffect(() => {
+    if (!isRouteInitialized.current) return
+
     const tabPaths: Record<AppTab, string> = {
       settings: '/tagsettings',
       decoder: '/decoder',
