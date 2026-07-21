@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Globe, Play, ExternalLink, Link2, Sparkles, Copy, Check, Info, Monitor } from 'lucide-react'
+import { Globe, Play, ExternalLink, Link2, Sparkles, Copy, Check, Monitor, RotateCcw, ShieldCheck, AlertCircle } from 'lucide-react'
 import { useCreativePreviewStore } from '../store'
 import { toast } from 'sonner'
 
@@ -14,14 +14,19 @@ export function GamOnSitePreviewPane() {
   const setMacroSubstitution = useCreativePreviewStore((s) => s.setMacroSubstitution)
   const setSize = useCreativePreviewStore((s) => s.setSize)
   const run = useCreativePreviewStore((s) => s.run)
+  const clearConsole = useCreativePreviewStore((s) => s.clearConsole)
 
   const [pastedUrl, setPastedUrl] = useState('')
   const [copiedAppUrl, setCopiedAppUrl] = useState(false)
 
-  const lineItemId = config.lineItemId || '8872190'
-  const creativeId = config.creativeId || '44102938'
-  const adUnitId = config.adUnitId || '/82109981/homepage_top'
-  const sizeTargeting = config.sizeTargeting || '300x250'
+  const lineItemId = config.lineItemId || '7322921650'
+  const creativeId = config.creativeId || '138561712827'
+  const adUnitId = config.adUnitId || '/23171577/expedia.fr_fr/hotels results'
+  const sizeTargeting = config.sizeTargeting || '160x600'
+
+  // Detect if preview token is present on current page URL or pasted URL
+  const currentParams = new URLSearchParams(window.location.search)
+  const activeToken = currentParams.get('google_preview') || currentParams.get('googlesitepreview')
 
   // Current page URL to paste into GAM's "On site" dialog
   const currentOnSitePageUrl = `${window.location.origin}/creative`
@@ -46,9 +51,10 @@ export function GamOnSitePreviewPane() {
       const lid = url.searchParams.get('lineItemId') || url.searchParams.get('lineitem')
       const cid = url.searchParams.get('creativeId') || url.searchParams.get('creative')
       const sz = url.searchParams.get('sz') || url.searchParams.get('size')
+      const previewToken = url.searchParams.get('google_preview') || url.searchParams.get('googlesitepreview')
 
       const patch: Record<string, string> = {}
-      if (iu) patch.adUnitId = iu
+      if (iu) patch.adUnitId = decodeURIComponent(iu)
       if (lid) patch.lineItemId = lid
       if (cid) patch.creativeId = cid
       if (sz) patch.sizeTargeting = sz
@@ -57,8 +63,14 @@ export function GamOnSitePreviewPane() {
 
       if (lid) setMacroSubstitution('%eaid!', lid)
       if (cid) setMacroSubstitution('%ecid!', cid)
-      if (iu) setMacroSubstitution('%epid!', iu)
+      if (iu) setMacroSubstitution('%epid!', decodeURIComponent(iu))
       if (sz && sz.includes('x')) setSize(sz as any)
+
+      // Update URL query parameters cleanly so GPT sees google_preview
+      if (previewToken) {
+        const newSearch = url.search
+        window.history.replaceState(null, '', window.location.pathname + newSearch)
+      }
 
       toast.success('Successfully extracted GAM On-Site preview parameters!')
       run()
@@ -77,6 +89,31 @@ export function GamOnSitePreviewPane() {
     toast.success('Rendering GAM On-Site creative directly inside page canvas!')
   }
 
+  // 1-Click Reset Defaults to clean, verified GAM parameters
+  const handleResetDefaults = () => {
+    const defaultAdUnit = '/23171577/expedia.fr_fr/hotels results'
+    const defaultLineItem = '7322921650'
+    const defaultCreative = '138561712827'
+    const defaultSize = '160x600'
+
+    updateConfig({
+      adUnitId: defaultAdUnit,
+      lineItemId: defaultLineItem,
+      creativeId: defaultCreative,
+      sizeTargeting: defaultSize,
+    })
+
+    setMacroSubstitution('%epid!', defaultAdUnit)
+    setMacroSubstitution('%eaid!', defaultLineItem)
+    setMacroSubstitution('%ecid!', defaultCreative)
+    setSize('160x600')
+    setPastedUrl('')
+    clearConsole()
+    run()
+
+    toast.success('Reset all GAM On-Site Preview parameters to working defaults!')
+  }
+
   const handleOpenTestPage = () => {
     const previewParams = `?googlesitepreview=1&google_preview=1&iu=${encodeURIComponent(
       adUnitId
@@ -93,13 +130,43 @@ export function GamOnSitePreviewPane() {
             <Globe className="size-4" />
             <span>GAM "On Site" Preview Live Receiver &amp; Renderer</span>
           </div>
-          <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-            Live GAM Preview Receiver
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetDefaults}
+              className="h-6 px-2 text-[10px] gap-1 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-semibold"
+            >
+              <RotateCcw className="size-3" />
+              <span>Reset Defaults</span>
+            </Button>
+            <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+              Live Receiver Active
+            </Badge>
+          </div>
         </CardTitle>
       </CardHeader>
 
       <CardContent className="p-4 flex flex-col gap-4">
+        {/* Token Status Badge */}
+        <div className={`border rounded-lg p-2.5 text-xs flex items-center justify-between gap-2 ${
+          activeToken ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+        }`}>
+          <div className="flex items-center gap-2 font-medium">
+            {activeToken ? <ShieldCheck className="size-4 text-emerald-400 shrink-0" /> : <AlertCircle className="size-4 text-amber-400 shrink-0" />}
+            <span>
+              {activeToken
+                ? `GAM Preview Token Active: ${activeToken.substring(0, 18)}...`
+                : 'No active GAM token in URL. Copy page URL below into GAM "On site" dialog or paste preview link.'}
+            </span>
+          </div>
+          {activeToken && (
+            <Badge className="bg-emerald-600 text-white text-[10px] uppercase font-bold shrink-0">
+              Token Valid
+            </Badge>
+          )}
+        </div>
+
         {/* Step-by-Step Instructions matching GAM UI */}
         <div className="border border-emerald-500/30 bg-emerald-500/10 rounded-lg p-3 text-xs text-emerald-300 flex flex-col gap-2">
           <div className="flex items-center gap-2 font-bold text-emerald-400">
@@ -135,13 +202,13 @@ export function GamOnSitePreviewPane() {
               <Link2 className="size-3.5 text-emerald-400" />
               <span>Paste GAM "On Site" Preview URL</span>
             </div>
-            <span className="text-[10px] text-muted-foreground font-normal">Extracts <code>googlesitepreview</code> token</span>
+            <span className="text-[10px] text-muted-foreground font-normal">Extracts <code>googlesitepreview</code> token &amp; parameters</span>
           </Label>
           <div className="flex items-center gap-2">
             <Input
               value={pastedUrl}
               onChange={(e) => setPastedUrl(e.target.value)}
-              placeholder="https://mywebsite.com/creative?googlesitepreview=...&iu=...&lineItemId=..."
+              placeholder="https://mywebsite.com/creative?google_preview=...&iu=...&lineItemId=..."
               className="h-8 text-xs font-mono"
             />
             <Button variant="outline" size="sm" onClick={handleParsePastedUrl} className="h-8 px-3 text-xs shrink-0 gap-1 border-emerald-500/40">
@@ -156,34 +223,37 @@ export function GamOnSitePreviewPane() {
           <div className="flex flex-col gap-1 sm:col-span-2">
             <Label className="text-xs font-semibold flex items-center justify-between">
               <span>Targeted Ad Unit Path (%epid!)</span>
-              <span className="text-[10px] text-muted-foreground">GAM Ad Unit (e.g. /23171577/homepage)</span>
+              <span className="text-[10px] text-muted-foreground">GAM Ad Unit Path</span>
             </Label>
             <Input
               value={adUnitId}
               onChange={(e) => updateConfig({ adUnitId: e.target.value })}
-              placeholder="/23171577/homepage"
+              placeholder="/23171577/expedia.fr_fr/hotels results"
               className="h-8 text-xs font-mono"
             />
             {/* Quick Sub-AdUnit Suggestions */}
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              <span className="text-[10px] text-muted-foreground">Quick Sub-AdUnit Paths:</span>
-              {['/homepage', '/banner', '/top_banner', '/sidebar', '/ros'].map((sub) => {
-                const baseNet = adUnitId.split('/')[1] || '23171577'
-                const candidatePath = `/${baseNet}${sub}`
-                return (
-                  <button
-                    key={sub}
-                    type="button"
-                    onClick={() => {
-                      updateConfig({ adUnitId: candidatePath })
-                      toast.info(`Updated ad unit path to ${candidatePath}`)
-                    }}
-                    className="text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700"
-                  >
-                    {candidatePath}
-                  </button>
-                )
-              })}
+              <span className="text-[10px] text-muted-foreground">Quick AdUnit Presets:</span>
+              {[
+                '/23171577/expedia.fr_fr/hotels results',
+                '/23171577/expedia.fr_fr',
+                '/23171577/homepage',
+                '/23171577/banner',
+                '/82109981/homepage_top',
+              ].map((path) => (
+                <button
+                  key={path}
+                  type="button"
+                  onClick={() => {
+                    updateConfig({ adUnitId: path })
+                    setMacroSubstitution('%epid!', path)
+                    toast.info(`Updated ad unit path to ${path}`)
+                  }}
+                  className="text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700"
+                >
+                  {path}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -192,7 +262,7 @@ export function GamOnSitePreviewPane() {
             <Input
               value={lineItemId}
               onChange={(e) => updateConfig({ lineItemId: e.target.value })}
-              placeholder="8872190"
+              placeholder="7322921650"
               className="h-8 text-xs font-mono"
             />
           </div>
@@ -202,7 +272,7 @@ export function GamOnSitePreviewPane() {
             <Input
               value={creativeId}
               onChange={(e) => updateConfig({ creativeId: e.target.value })}
-              placeholder="44102938"
+              placeholder="138561712827"
               className="h-8 text-xs font-mono"
             />
           </div>
@@ -239,33 +309,38 @@ export function GamOnSitePreviewPane() {
           </div>
         </div>
 
-        {/* Requirement Note */}
-        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 bg-muted/30 p-2 rounded border">
-          <Info className="size-3.5 text-blue-400 shrink-0" />
-          <span>GAM On-Site rule: Ad unit path and size targeting must match line item setup. Other targeting criteria are bypassed for previews.</span>
-        </div>
-
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleRenderInPage}
-            className="h-9 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-2 flex-1 min-w-[180px]"
-          >
-            <Play className="size-4 fill-current" />
-            <span>Render GAM Creative In Our Page</span>
-          </Button>
-
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 mt-1">
           <Button
             variant="outline"
             size="sm"
-            onClick={handleOpenTestPage}
-            className="h-9 px-3 text-xs gap-1.5 border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-300"
+            onClick={handleResetDefaults}
+            className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-semibold"
           >
-            <ExternalLink className="size-4" />
-            <span>Open Standalone /testpage</span>
+            <RotateCcw className="size-3.5" />
+            <span>Reset All Defaults</span>
           </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenTestPage}
+              className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+            >
+              <ExternalLink className="size-3.5" />
+              <span>Full Test Page</span>
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={handleRenderInPage}
+              className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-xs"
+            >
+              <Play className="size-3.5" />
+              <span>Render GAM Creative In Our Page</span>
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

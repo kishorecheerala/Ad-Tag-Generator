@@ -140,16 +140,23 @@ export function CreativeFormatToolbar() {
           </Button>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-8 px-2 text-xs"
+            className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-semibold"
             onClick={() => {
               reset()
-              toast.success('Creative state reset to default')
+              useCreativePreviewStore.getState().updateLiveSiteConfig({
+                adUnitId: '/23171577/expedia.fr_fr/hotels results',
+                lineItemId: '7322921650',
+                creativeId: '138561712827',
+                sizeTargeting: '160x600',
+              })
+              toast.success('Reset all creative settings & GAM parameters to defaults!')
             }}
-            title="Reset All Creative Settings"
+            title="Reset All Creative Settings to Defaults"
           >
-            <RefreshCw className="size-3.5 text-muted-foreground" />
+            <RefreshCw className="size-3.5 text-amber-400" />
+            <span>Reset Defaults</span>
           </Button>
         </div>
 
