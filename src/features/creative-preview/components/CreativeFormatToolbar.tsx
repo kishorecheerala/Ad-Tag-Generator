@@ -142,11 +142,11 @@ export function CreativeFormatToolbar() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-semibold"
+            className="h-8 text-xs gap-1.5 border-amber-600/40 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold"
             onClick={() => {
               reset()
               useCreativePreviewStore.getState().updateLiveSiteConfig({
-                adUnitId: '/23171577/expedia.fr_fr/hotels results',
+                adUnitId: '/23171577/travel_portal/hotels/results',
                 lineItemId: '7322921650',
                 creativeId: '138561712827',
                 sizeTargeting: '160x600',
@@ -155,7 +155,7 @@ export function CreativeFormatToolbar() {
             }}
             title="Reset All Creative Settings to Defaults"
           >
-            <RefreshCw className="size-3.5 text-amber-400" />
+            <RefreshCw className="size-3.5 text-amber-600 dark:text-amber-400" />
             <span>Reset Defaults</span>
           </Button>
         </div>
