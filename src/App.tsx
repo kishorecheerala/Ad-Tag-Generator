@@ -158,6 +158,17 @@ function App() {
         }
       }
 
+      // Automatically expand root network codes to full ad units
+      const cleanedPath = effectiveAdUnit.trim()
+      const normalizedPath = cleanedPath.startsWith('/') ? cleanedPath : '/' + cleanedPath
+      if (normalizedPath === '/23171577' || normalizedPath === '/23171577/') {
+        effectiveAdUnit = '/23171577/expedia.fr_fr/hotels results'
+      } else if (normalizedPath === '/82109981' || normalizedPath === '/82109981/') {
+        effectiveAdUnit = '/82109981/homepage_top'
+      } else {
+        effectiveAdUnit = normalizedPath
+      }
+
       if (googlePreviewParam || (adUnitParam && lineItemParam)) {
         targetTab = 'creative'
         useCreativePreviewStore.getState().setFormatMode('on_site_gam')
