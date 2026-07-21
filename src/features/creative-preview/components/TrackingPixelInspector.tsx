@@ -36,6 +36,8 @@ export function TrackingPixelInspector() {
   const setMacroSubstitution = useCreativePreviewStore((s) => s.setMacroSubstitution)
   const beaconPingResults = useCreativePreviewStore((s) => s.beaconPingResults)
   const recordBeaconPing = useCreativePreviewStore((s) => s.recordBeaconPing)
+  const renderedSiteToURLMap = useCreativePreviewStore((s) => s.renderedSiteToURLMap)
+  const renderedTemplateVars = useCreativePreviewStore((s) => s.renderedTemplateVars)
 
   const [auditorHeight, setAuditorHeight] = useState<number | null>(null)
   const [isPingingAll, setIsPingingAll] = useState(false)
@@ -351,6 +353,80 @@ export function TrackingPixelInspector() {
       </CardHeader>
 
       <CardContent className="flex-1 min-h-0 flex flex-col gap-4 py-3 overflow-y-auto">
+        {/* Rendered Variables & Macros Matrix */}
+        {(renderedSiteToURLMap || renderedTemplateVars) && (
+          <div className="flex flex-col gap-4 border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 shrink-0">
+            <div className="flex items-center justify-between border-b border-blue-500/20 pb-2">
+              <Label className="text-xs text-blue-400 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                <Sparkles className="size-4 text-blue-400" />
+                <span>GAM Live Auction Variable &amp; Macro Matrix</span>
+              </Label>
+              <Badge variant="outline" className="text-[9px] bg-blue-500/10 text-blue-300 border-blue-500/30">
+                Extracted from Iframe Scope
+              </Badge>
+            </div>
+
+            {/* Template Variables */}
+            {renderedTemplateVars && (
+              <div className="flex flex-col gap-1.5">
+                <div className="text-[11px] font-semibold text-zinc-300">Template Variables (templateVars)</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {Object.entries(renderedTemplateVars).map(([key, value]) => {
+                    const stringVal = typeof value === 'object' ? JSON.stringify(value) : String(value)
+                    const isUnexpanded = /%%|\[%|%[a-z0-9]+!/.test(stringVal)
+                    return (
+                      <div key={key} className="flex flex-col gap-1 border border-zinc-800 rounded px-2.5 py-1.5 bg-zinc-900/60">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                          <span className="font-mono text-blue-300">{key}</span>
+                          {isUnexpanded ? (
+                            <span className="text-amber-400 font-medium">Unresolved Macro</span>
+                          ) : (
+                            <span className="text-emerald-400 font-medium font-semibold">✓ Resolved</span>
+                          )}
+                        </div>
+                        <div className="font-mono text-[11px] text-zinc-200 break-all select-all">
+                          {stringVal || <span className="text-zinc-600 italic">empty</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Site to URL Map */}
+            {renderedSiteToURLMap && (
+              <div className="flex flex-col gap-1.5 border-t border-blue-500/10 pt-3">
+                <div className="text-[11px] font-semibold text-zinc-300">Redirect URL Mapping (siteToURLMap)</div>
+                <div className="flex flex-col gap-1.5 max-h-[180px] overflow-y-auto pr-1">
+                  {renderedSiteToURLMap.map((item, idx) => {
+                    const entries = Object.entries(item || {})
+                    if (entries.length === 0) return null
+                    const [siteKey, redirectUrl] = entries[0]
+                    const stringUrl = String(redirectUrl)
+                    const isUnexpanded = /%%|\[%|%[a-z0-9]+!/.test(stringUrl)
+                    return (
+                      <div key={idx} className="flex flex-col border border-zinc-800 rounded p-2 bg-zinc-900/40 text-xs">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-400 mb-1">
+                          <span className="font-mono text-zinc-300 font-semibold">{siteKey}</span>
+                          {isUnexpanded ? (
+                            <span className="text-amber-400 font-medium font-semibold">Unresolved Macro</span>
+                          ) : (
+                            <span className="text-emerald-400 font-medium font-semibold">✓ Resolved</span>
+                          )}
+                        </div>
+                        <div className="font-mono text-[11px] text-blue-400 break-all select-all">
+                          {stringUrl}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Extracted Beacons Table */}
         <div className="flex flex-col gap-2 shrink-0">
           <div className="flex items-center justify-between">
