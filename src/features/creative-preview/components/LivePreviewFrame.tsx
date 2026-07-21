@@ -56,9 +56,12 @@ export function LivePreviewFrame() {
 
     // 1. GAM On-Site Live Ad Renderer Mode
     if (formatMode === 'on_site_gam') {
-      const adUnitId = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/82109981/homepage_top'
-      const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '8872190'
-      const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || '44102938'
+      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/82109981/homepage_top'
+      // Ensure leading slash on ad unit path (GPT requirement)
+      const adUnitId = rawAdUnit.trim().startsWith('/') ? rawAdUnit.trim() : '/' + rawAdUnit.trim()
+
+      const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '7322921650'
+      const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || '138561712827'
       const sizeTargeting = liveSiteConfig.sizeTargeting || (size === 'responsive' ? '300x250' : size)
 
       const parsedSize = sizeTargeting === 'fluid'
@@ -66,6 +69,8 @@ export function LivePreviewFrame() {
         : sizeTargeting.includes('x')
           ? `[${sizeTargeting.split('x').join(', ')}]`
           : `[300, 250]`
+
+      const parentSearchString = window.location.search || ''
 
       return `<!DOCTYPE html>
 <html>
@@ -82,6 +87,42 @@ export function LivePreviewFrame() {
   .as-info-row:last-child { border-b: none; }
 </style>
 <script>${CONSOLE_BRIDGE}<\/script>
+
+<!-- Inject parent query string so GPT sees google_preview & iu parameters -->
+<script>
+  try {
+    if (window.history && window.history.replaceState) {
+      var topSearch = ${JSON.stringify(parentSearchString)};
+      if (topSearch) {
+        window.history.replaceState(null, '', window.location.pathname + topSearch);
+      }
+    }
+  } catch (e) {}
+<\/script>
+
+<!-- Pre-paint Interceptor to log tracking pixels -->
+<script>
+(function() {
+  var originalCreateElement = document.createElement;
+  document.createElement = function(tagName) {
+    var el = originalCreateElement.apply(this, arguments);
+    if (tagName && tagName.toLowerCase() === 'img') {
+      var originalSetAttribute = el.setAttribute;
+      Object.defineProperty(el, 'src', {
+        set: function(val) {
+          if (val && (val.indexOf('pixel') !== -1 || val.indexOf('impression') !== -1 || val.indexOf('doubleclick') !== -1 || val.indexOf('log') !== -1)) {
+            console.log('[TRACKING PIXEL FIRED] ' + val);
+          }
+          el.setAttribute('src', val);
+        },
+        get: function() { return el.getAttribute('src'); }
+      });
+    }
+    return el;
+  };
+})();
+<\/script>
+
 <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"><\/script>
 <script>
   window.googletag = window.googletag || {cmd: []};
@@ -91,13 +132,29 @@ export function LivePreviewFrame() {
       slot.addService(googletag.pubads());
     }
 
+    // Set page-level GAM preview targeting
+    var urlParams = new URLSearchParams(window.location.search);
+    var previewToken = urlParams.get('google_preview') || urlParams.get('googlesitepreview');
+    if (previewToken) {
+      googletag.pubads().setTargeting('google_preview', previewToken);
+      googletag.pubads().setTargeting('googlesitepreview', previewToken);
+    }
+    if ('${lineItemId}') googletag.pubads().setTargeting('lineItemId', '${lineItemId}');
+    if ('${creativeId}') googletag.pubads().setTargeting('creativeId', '${creativeId}');
+
     googletag.pubads().addEventListener('slotRenderEnded', function(event) {
       console.log('[GAM On-Site Render] Slot: ' + event.slot.getAdUnitPath() + ' | Empty: ' + event.isEmpty + ' | LineItem: ' + (event.lineItemId || 'N/A') + ' | Creative: ' + (event.creativeId || 'N/A'));
       
       var infoDiv = document.getElementById('as-info-content');
       if (infoDiv) {
         if (event.isEmpty) {
-          infoDiv.innerHTML = '<div style="color:#ef4444;font-weight:bold;">No Ad Returned from GAM Auction</div><div style="font-size:10px;color:#a1a1aa;margin-top:4px;">Check line item status, targeting matching, or use test network ID /82109981</div>';
+          infoDiv.innerHTML = '<div style="color:#ef4444;font-weight:bold;margin-bottom:4px;">No Ad Returned from GAM Auction (Empty: true)</div>' +
+            '<div style="font-size:10px;color:#a1a1aa;line-height:1.4;">' +
+            '&bull; <b>Ad Unit Path:</b> ${adUnitId} (Ensure leading slash / and sub-adunit path match GAM setup)<br>' +
+            '&bull; <b>Line Item ID:</b> ${lineItemId} | <b>Creative ID:</b> ${creativeId}<br>' +
+            '&bull; <b>Size Targeting:</b> ${sizeTargeting}<br>' +
+            '&bull; <i>Tip: If using custom GAM ad unit, ensure slot path matches GAM (e.g. /${adUnitId.replace(/^\//, '')}/slot_name)</i>' +
+            '</div>';
         } else {
           infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span class="info-tag">' + (event.lineItemId || '${lineItemId}') + '</span></div>' +
             '<div class="as-info-row"><span>Creative ID:</span><span class="info-tag">' + (event.creativeId || '${creativeId}') + '</span></div>' +
@@ -332,11 +389,11 @@ ${finalJs}
               size="sm"
               className="h-7 text-[11px] gap-1 border-emerald-500/40 text-emerald-300"
               onClick={() => {
-                const lineItemId = liveSiteConfig.lineItemId || '8872190'
-                const creativeId = liveSiteConfig.creativeId || '44102938'
-                const adUnitId = liveSiteConfig.adUnitId || '/82109981/homepage_top'
+                const lineItemId = liveSiteConfig.lineItemId || '7322921650'
+                const creativeId = liveSiteConfig.creativeId || '138561712827'
+                const adUnitId = liveSiteConfig.adUnitId || '23171577'
                 window.open(
-                  `/testpage?googlesitepreview=1&google_preview=1&iu=${encodeURIComponent(
+                  `/testpage?google_preview=1&iu=${encodeURIComponent(
                     adUnitId
                   )}&lineItemId=${lineItemId}&creativeId=${creativeId}`,
                   '_blank'
