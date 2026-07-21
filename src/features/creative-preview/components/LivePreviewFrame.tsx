@@ -120,9 +120,22 @@ export function LivePreviewFrame() {
 })();
 <\/script>
 
-<script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"><\/script>
+<script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js" onerror="
+  window.__gptBlocked = true;
+  console.error('[GAM On-Site Error] gpt.js was blocked by browser or ad-blocker.');
+  var infoDiv = document.getElementById('as-info-content');
+  if (infoDiv) {
+    infoDiv.innerHTML = '<div style=\'color:#ef4444;font-weight:bold;\'>Ad-Blocker Detected (net::ERR_BLOCKED_BY_CLIENT)</div>' +
+      '<div style=\'font-size:10px;color:#f87171;margin-top:4px;line-height:1.4;\'>' +
+      '&bull; <b>Action Needed:</b> Please pause Brave Shields, uBlock Origin, or AdGuard on this domain (ad-tag-generator.vercel.app) to allow Google Ad Manager to respond.<br>' +
+      '&bull; Or click <b>Full Test Page</b> above to test in a clean tab.' +
+      '</div>';
+  }
+"><\/script>
 <script>
   window.googletag = window.googletag || {cmd: []};
+  var slotRenderFired = false;
+
   googletag.cmd.push(function() {
     var slot = googletag.defineSlot('${adUnitId.replace(/'/g, "\\'")}', ${parsedSize}, 'gam-onsite-preview-slot');
     if (slot) {
@@ -140,6 +153,7 @@ export function LivePreviewFrame() {
     if ('${creativeId}') googletag.pubads().setTargeting('creativeId', '${creativeId}');
 
     googletag.pubads().addEventListener('slotRenderEnded', function(event) {
+      slotRenderFired = true;
       console.log('[GAM On-Site Render] Slot: ' + event.slot.getAdUnitPath() + ' | Empty: ' + event.isEmpty + ' | LineItem: ' + (event.lineItemId || 'N/A') + ' | Creative: ' + (event.creativeId || 'N/A'));
       
       var infoDiv = document.getElementById('as-info-content');
@@ -150,7 +164,7 @@ export function LivePreviewFrame() {
             '&bull; <b>Ad Unit Path:</b> ${adUnitId}<br>' +
             '&bull; <b>Line Item ID:</b> ${lineItemId} | <b>Creative ID:</b> ${creativeId}<br>' +
             '&bull; <b>Size Targeting:</b> ${sizeTargeting}<br>' +
-            '&bull; <i>Note: Ensure ad unit path &amp; size match line item targeting in GAM.</i>' +
+            '&bull; <i>Check if GAM preview token expired. Re-click "On site" in GAM to generate a fresh link.</i>' +
             '</div>';
         } else {
           infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span class="info-tag">' + (event.lineItemId || '${lineItemId}') + '</span></div>' +
@@ -163,6 +177,21 @@ export function LivePreviewFrame() {
 
     googletag.enableServices();
   });
+
+  // 4.5s Timeout diagnostic for blocked requests or slow responses
+  setTimeout(function() {
+    if (!slotRenderFired && !window.__gptBlocked) {
+      var infoDiv = document.getElementById('as-info-content');
+      if (infoDiv && infoDiv.innerText.indexOf('Requesting ad') !== -1) {
+        infoDiv.innerHTML = '<div style="color:#fbbf24;font-weight:bold;">GAM Request Pending / Token Timeout</div>' +
+          '<div style="font-size:10px;color:#a1a1aa;margin-top:4px;line-height:1.4;">' +
+          '&bull; GAM preview token may have expired or is blocked by browser extension.<br>' +
+          '&bull; Click <b>On site</b> in GAM UI again to refresh token, or test in <b>Full Test Page</b> tab.<br>' +
+          '&bull; Alternatively, paste your Creative Template JSON into <b>GAM Native JSON</b> editor.' +
+          '</div>';
+      }
+    }
+  }, 4500);
 <\/script>
 </head>
 <body>
