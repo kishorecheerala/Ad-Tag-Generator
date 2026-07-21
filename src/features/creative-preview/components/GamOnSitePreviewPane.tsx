@@ -150,10 +150,10 @@ export function GamOnSitePreviewPane() {
       <CardContent className="p-4 flex flex-col gap-4">
         {/* Token Status Badge */}
         <div className={`border rounded-lg p-2.5 text-xs flex items-center justify-between gap-2 ${
-          activeToken ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+          activeToken ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
         }`}>
           <div className="flex items-center gap-2 font-medium">
-            {activeToken ? <ShieldCheck className="size-4 text-emerald-400 shrink-0" /> : <AlertCircle className="size-4 text-amber-400 shrink-0" />}
+            {activeToken ? <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" /> : <AlertCircle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />}
             <span>
               {activeToken
                 ? `GAM Preview Token Active: ${activeToken.substring(0, 18)}...`
@@ -168,8 +168,8 @@ export function GamOnSitePreviewPane() {
         </div>
 
         {/* Step-by-Step Instructions matching GAM UI */}
-        <div className="border border-emerald-500/30 bg-emerald-500/10 rounded-lg p-3 text-xs text-emerald-300 flex flex-col gap-2">
-          <div className="flex items-center gap-2 font-bold text-emerald-400">
+        <div className="border border-emerald-500/30 bg-emerald-500/10 rounded-lg p-3 text-xs text-emerald-800 dark:text-emerald-300 flex flex-col gap-2">
+          <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-400">
             <Monitor className="size-4" />
             <span>How to preview GAM Creatives using GAM's "On site" button:</span>
           </div>
@@ -187,10 +187,10 @@ export function GamOnSitePreviewPane() {
               variant="outline"
               size="sm"
               onClick={handleCopyAppUrl}
-              className="h-8 px-3 text-xs shrink-0 gap-1 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+              className="h-8 px-3 text-xs shrink-0 gap-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
             >
               {copiedAppUrl ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-              <span>{copiedAppUrl ? 'Copied URL!' : 'Copy Page URL'}</span>
+              <span>{copiedAppUrl ? 'Copied!' : 'Copy Page URL'}</span>
             </Button>
           </div>
         </div>
@@ -199,7 +199,7 @@ export function GamOnSitePreviewPane() {
         <div className="flex flex-col gap-1.5 border rounded-lg p-3 bg-muted/20">
           <Label className="text-xs font-semibold flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <Link2 className="size-3.5 text-emerald-400" />
+              <Link2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Paste GAM "On Site" Preview URL</span>
             </div>
             <span className="text-[10px] text-muted-foreground font-normal">Extracts <code>googlesitepreview</code> token &amp; parameters</span>
@@ -211,8 +211,8 @@ export function GamOnSitePreviewPane() {
               placeholder="https://mywebsite.com/creative?google_preview=...&iu=...&lineItemId=..."
               className="h-8 text-xs font-mono"
             />
-            <Button variant="outline" size="sm" onClick={handleParsePastedUrl} className="h-8 px-3 text-xs shrink-0 gap-1 border-emerald-500/40">
-              <Sparkles className="size-3 text-emerald-400" />
+            <Button variant="outline" size="sm" onClick={handleParsePastedUrl} className="h-8 px-3 text-xs shrink-0 gap-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10">
+              <Sparkles className="size-3 text-emerald-600 dark:text-emerald-400" />
               <span>Parse &amp; Load</span>
             </Button>
           </div>

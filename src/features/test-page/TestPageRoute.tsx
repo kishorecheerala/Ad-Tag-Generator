@@ -23,8 +23,9 @@ export function TestPageRoute() {
 
     const searchParams = new URLSearchParams(window.location.search)
     const hasPreview = searchParams.get('google_preview') || searchParams.get('googlesitepreview')
+    const isGamPreviewMode = searchParams.get('mode') === 'gam_preview'
 
-    if (hasPreview) {
+    if (hasPreview || isGamPreviewMode) {
       const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || '/23171577/expedia.fr_fr/hotels/results'
       let iu = rawIu.trim().startsWith('/') ? rawIu.trim() : '/' + rawIu.trim()
       if (iu === '/23171577' || iu === '23171577') {
