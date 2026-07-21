@@ -208,13 +208,34 @@ export function GamOnSitePreviewPane() {
           </div>
 
           <div className="flex flex-col gap-1 sm:col-span-2">
-            <Label className="text-xs font-semibold">Targeted Ad Size</Label>
+            <Label className="text-xs font-semibold flex items-center justify-between">
+              <span>Targeted Ad Size</span>
+              <span className="text-[10px] text-muted-foreground">Must match line item / creative size</span>
+            </Label>
             <Input
               value={sizeTargeting}
               onChange={(e) => updateConfig({ sizeTargeting: e.target.value })}
-              placeholder="300x250"
+              placeholder="160x600"
               className="h-8 text-xs font-mono"
             />
+            {/* Quick Size Helper Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <span className="text-[10px] text-muted-foreground">Quick Sizes:</span>
+              {['160x600', '300x250', '728x90', '300x600', '320x50', 'fluid'].map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => {
+                    updateConfig({ sizeTargeting: sz })
+                    setSize(sz as any)
+                    toast.info(`Updated Targeted Ad Size to ${sz}`)
+                  }}
+                  className="text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-amber-300 px-1.5 py-0.5 rounded border border-zinc-700 font-semibold"
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
