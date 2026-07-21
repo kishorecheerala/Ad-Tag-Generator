@@ -149,11 +149,20 @@ function App() {
       const creativeParam = searchParams.get('creativeId') || searchParams.get('creative')
       const sizeParam = searchParams.get('sz') || searchParams.get('size')
 
+      let effectiveAdUnit = useCreativePreviewStore.getState().liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels results'
+      if (adUnitParam) {
+        const decoded = decodeURIComponent(adUnitParam).trim()
+        const countSlashes = (decoded.match(/\//g) || []).length
+        if (countSlashes >= 2 || (decoded.includes('/') && !decoded.startsWith('/'))) {
+          effectiveAdUnit = decoded.startsWith('/') ? decoded : '/' + decoded
+        }
+      }
+
       if (googlePreviewParam || (adUnitParam && lineItemParam)) {
         targetTab = 'creative'
         useCreativePreviewStore.getState().setFormatMode('on_site_gam')
         useCreativePreviewStore.getState().updateLiveSiteConfig({
-          adUnitId: adUnitParam || '/23171577/expedia.fr_fr/hotels results',
+          adUnitId: effectiveAdUnit,
           lineItemId: lineItemParam || '7322921650',
           creativeId: creativeParam || '138561712827',
           sizeTargeting: sizeParam || '160x600',
