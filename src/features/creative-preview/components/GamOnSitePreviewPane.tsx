@@ -156,14 +156,35 @@ export function GamOnSitePreviewPane() {
           <div className="flex flex-col gap-1 sm:col-span-2">
             <Label className="text-xs font-semibold flex items-center justify-between">
               <span>Targeted Ad Unit Path (%epid!)</span>
-              <span className="text-[10px] text-muted-foreground">Matches line item ad unit</span>
+              <span className="text-[10px] text-muted-foreground">GAM Ad Unit (e.g. /23171577/homepage)</span>
             </Label>
             <Input
               value={adUnitId}
               onChange={(e) => updateConfig({ adUnitId: e.target.value })}
-              placeholder="/82109981/homepage_top"
+              placeholder="/23171577/homepage"
               className="h-8 text-xs font-mono"
             />
+            {/* Quick Sub-AdUnit Suggestions */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <span className="text-[10px] text-muted-foreground">Quick Sub-AdUnit Paths:</span>
+              {['/homepage', '/banner', '/top_banner', '/sidebar', '/ros'].map((sub) => {
+                const baseNet = adUnitId.split('/')[1] || '23171577'
+                const candidatePath = `/${baseNet}${sub}`
+                return (
+                  <button
+                    key={sub}
+                    type="button"
+                    onClick={() => {
+                      updateConfig({ adUnitId: candidatePath })
+                      toast.info(`Updated ad unit path to ${candidatePath}`)
+                    }}
+                    className="text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700"
+                  >
+                    {candidatePath}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1">
