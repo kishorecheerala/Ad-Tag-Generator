@@ -369,23 +369,23 @@ export function TrackingPixelInspector() {
             {/* Template Variables */}
             {renderedTemplateVars && (
               <div className="flex flex-col gap-1.5">
-                <div className="text-[11px] font-semibold text-zinc-300">Template Variables (templateVars)</div>
+                <div className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">Template Variables (templateVars)</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {Object.entries(renderedTemplateVars).map(([key, value]) => {
                     const stringVal = typeof value === 'object' ? JSON.stringify(value) : String(value)
                     const isUnexpanded = /%%|\[%|%[a-z0-9]+!/.test(stringVal)
                     return (
-                      <div key={key} className="flex flex-col gap-1 border border-zinc-800 rounded px-2.5 py-1.5 bg-zinc-900/60">
-                        <div className="flex items-center justify-between text-[10px] text-zinc-400">
-                          <span className="font-mono text-blue-300">{key}</span>
+                      <div key={key} className="flex flex-col gap-1 border border-zinc-200 dark:border-zinc-800 rounded px-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-900/60">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
+                          <span className="font-mono text-blue-600 dark:text-blue-400">{key}</span>
                           {isUnexpanded ? (
-                            <span className="text-amber-400 font-medium">Unresolved Macro</span>
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">Unresolved Macro</span>
                           ) : (
-                            <span className="text-emerald-400 font-medium font-semibold">✓ Resolved</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium font-semibold">✓ Resolved</span>
                           )}
                         </div>
-                        <div className="font-mono text-[11px] text-zinc-200 break-all select-all">
-                          {stringVal || <span className="text-zinc-600 italic">empty</span>}
+                        <div className="font-mono text-[11px] text-zinc-800 dark:text-zinc-200 break-all select-all">
+                          {stringVal || <span className="text-zinc-400 dark:text-zinc-600 italic">empty</span>}
                         </div>
                       </div>
                     )
@@ -397,7 +397,7 @@ export function TrackingPixelInspector() {
             {/* Site to URL Map */}
             {renderedSiteToURLMap && (
               <div className="flex flex-col gap-1.5 border-t border-blue-500/10 pt-3">
-                <div className="text-[11px] font-semibold text-zinc-300">Redirect URL Mapping (siteToURLMap)</div>
+                <div className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">Redirect URL Mapping (siteToURLMap)</div>
                 <div className="flex flex-col gap-1.5 max-h-[180px] overflow-y-auto pr-1">
                   {renderedSiteToURLMap.map((item, idx) => {
                     const entries = Object.entries(item || {})
@@ -406,16 +406,16 @@ export function TrackingPixelInspector() {
                     const stringUrl = String(redirectUrl)
                     const isUnexpanded = /%%|\[%|%[a-z0-9]+!/.test(stringUrl)
                     return (
-                      <div key={idx} className="flex flex-col border border-zinc-800 rounded p-2 bg-zinc-900/40 text-xs">
-                        <div className="flex items-center justify-between text-[10px] text-zinc-400 mb-1">
-                          <span className="font-mono text-zinc-300 font-semibold">{siteKey}</span>
+                      <div key={idx} className="flex flex-col border border-zinc-200 dark:border-zinc-800 rounded p-2 bg-zinc-50 dark:bg-zinc-900/40 text-xs">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300 font-semibold">{siteKey}</span>
                           {isUnexpanded ? (
-                            <span className="text-amber-400 font-medium font-semibold">Unresolved Macro</span>
+                            <span className="text-amber-600 dark:text-amber-400 font-medium font-semibold">Unresolved Macro</span>
                           ) : (
-                            <span className="text-emerald-400 font-medium font-semibold">✓ Resolved</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium font-semibold">✓ Resolved</span>
                           )}
                         </div>
-                        <div className="font-mono text-[11px] text-blue-400 break-all select-all">
+                        <div className="font-mono text-[11px] text-blue-600 dark:text-blue-400 break-all select-all">
                           {stringUrl}
                         </div>
                       </div>
@@ -430,7 +430,7 @@ export function TrackingPixelInspector() {
         {/* Extracted Beacons Table */}
         <div className="flex flex-col gap-2 shrink-0">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">
+            <Label className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold">
               Discovered Beacons &amp; Tracking Pixels
             </Label>
             <span className="text-[10px] text-muted-foreground">Click "Test Ping" to send real-time HTTP verification ping</span>
@@ -451,7 +451,7 @@ export function TrackingPixelInspector() {
                   >
                     <div className="flex flex-col gap-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-zinc-200 truncate">{beacon.name}</span>
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">{beacon.name}</span>
                         <Badge
                           variant="secondary"
                           className={cn(
@@ -465,17 +465,17 @@ export function TrackingPixelInspector() {
                           {beacon.category}
                         </Badge>
                         {beacon.hasUnexpandedMacro ? (
-                          <Badge variant="outline" className="text-[9px] text-amber-400 border-amber-500/30">
+                          <Badge variant="outline" className="text-[9px] text-amber-600 dark:text-amber-400 border-amber-500/30">
                             Unexpanded Macro
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[9px] text-emerald-400 border-emerald-500/30">
+                          <Badge variant="outline" className="text-[9px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
                             Macro Resolved
                           </Badge>
                         )}
                       </div>
 
-                      <div className="text-[11px] font-mono text-zinc-400 break-all truncate" title={beacon.resolvedUrl}>
+                      <div className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 break-all truncate" title={beacon.resolvedUrl}>
                         {beacon.resolvedUrl}
                       </div>
 
