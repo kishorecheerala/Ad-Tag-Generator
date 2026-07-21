@@ -86,4 +86,18 @@ export interface TagSettingsState {
 
   /** GPT request cache-buster / div-id suffix. Only rotated on explicit actions — see maybeGenerateNewCorrelator(). */
   correlator: number
+
+  // Privacy & Consent Simulation settings
+  privacyConsent: 'none' | 'accepted' | 'rejected' | 'custom'
+  customConsentString: string
+
+  // Prebid.js simulation settings
+  prebidEnabled: boolean
+  prebidBids: { bidder: string; cpm: number; size: string }[]
+
+  // Lazy Loading simulation settings
+  lazyLoadEnabled: boolean
+  lazyLoadFetchMarginPercent: number
+  lazyLoadRenderMarginPercent: number
+  lazyLoadMobileScalingFactor: number
 }
