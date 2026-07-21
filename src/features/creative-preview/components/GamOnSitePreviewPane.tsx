@@ -125,7 +125,7 @@ export function GamOnSitePreviewPane() {
   return (
     <Card className="flex flex-col border border-border bg-card shadow-xs">
       <CardHeader className="py-2.5 px-4 bg-emerald-500/10 border-b border-emerald-500/20">
-        <CardTitle className="text-sm font-bold flex items-center justify-between text-emerald-400">
+        <CardTitle className="text-sm font-bold flex items-center justify-between text-emerald-800 dark:text-emerald-300">
           <div className="flex items-center gap-2">
             <Globe className="size-4" />
             <span>GAM "On Site" Preview Live Receiver &amp; Renderer</span>
@@ -135,12 +135,12 @@ export function GamOnSitePreviewPane() {
               variant="outline"
               size="sm"
               onClick={handleResetDefaults}
-              className="h-6 px-2 text-[10px] gap-1 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-semibold"
+              className="h-6 px-2 text-[10px] gap-1 border-amber-600/40 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
             >
               <RotateCcw className="size-3" />
               <span>Reset Defaults</span>
             </Button>
-            <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+            <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
               Live Receiver Active
             </Badge>
           </div>

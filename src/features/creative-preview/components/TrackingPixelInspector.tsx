@@ -336,7 +336,7 @@ export function TrackingPixelInspector() {
         </CardTitle>
 
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+          <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
             {extractedBeacons.length} Tracking Pixels
           </Badge>
           <Button
@@ -441,7 +441,7 @@ export function TrackingPixelInspector() {
               No tracking beacons detected in creative snippet.
             </div>
           ) : (
-            <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 pr-1">
               {extractedBeacons.map((beacon) => {
                 const ping = beaconPingResults[beacon.rawUrl]
                 return (
@@ -529,7 +529,7 @@ export function TrackingPixelInspector() {
           {discoveredMacros.length === 0 ? (
             <span className="text-xs text-muted-foreground italic">No macros found in creative code.</span>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3 bg-muted/10 max-h-[220px] overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3 bg-muted/10">
               {discoveredMacros.map((macro) => (
                 <div key={macro} className="flex flex-col gap-1">
                   <span className="text-[10px] font-mono font-bold text-zinc-300 truncate" title={macro}>
