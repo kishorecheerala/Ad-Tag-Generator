@@ -56,11 +56,11 @@ export function LivePreviewFrame() {
 
     // 1. GAM On-Site Live Ad Renderer Mode
     if (formatMode === 'on_site_gam') {
-      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/23171577/expedia.fr_fr/hotels results'
+      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/23171577/expedia.fr_fr/hotels_results'
       let adUnitId = rawAdUnit.trim().startsWith('/') ? rawAdUnit.trim() : '/' + rawAdUnit.trim()
       // If GAM URL passed only the network code (e.g. "/23171577"), expand to full ad unit path
       if (adUnitId === '/23171577' || adUnitId === '23171577') {
-        adUnitId = '/23171577/expedia.fr_fr/hotels results'
+        adUnitId = '/23171577/expedia.fr_fr/hotels_results'
       }
 
       const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '7322921650'
