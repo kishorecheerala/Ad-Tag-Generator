@@ -26,10 +26,10 @@ export function TestPageRoute() {
     const isGamPreviewMode = searchParams.get('mode') === 'gam_preview'
 
     if (hasPreview || isGamPreviewMode) {
-      const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || '/23171577/expedia.fr_fr/hotels/results'
+      const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || '/23171577/travel_portal/hotels/results'
       let iu = rawIu.trim().startsWith('/') ? rawIu.trim() : '/' + rawIu.trim()
       if (iu === '/23171577' || iu === '23171577') {
-        iu = '/23171577/expedia.fr_fr/hotels/results'
+        iu = '/23171577/travel_portal/hotels/results'
       }
       const sz = searchParams.get('sz') || searchParams.get('size') || '160x600'
       const parsedSize = sz === 'fluid' ? "'fluid'" : sz.includes('x') ? `[${sz.split('x').join(', ')}]` : `[160, 600]`
