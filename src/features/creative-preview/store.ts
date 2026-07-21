@@ -264,6 +264,8 @@ interface CreativePreviewStore {
   macroSubstitutions: Record<string, string>
   liveSiteModalOpen: boolean
   liveSiteConfig: LiveSitePreviewConfig
+  renderedSiteToURLMap: any[] | null
+  renderedTemplateVars: Record<string, any> | null
 
   setFormatMode: (mode: CreativeFormatMode) => void
   setJsonContent: (v: string) => void
@@ -280,6 +282,8 @@ interface CreativePreviewStore {
   setMacroSubstitution: (macro: string, value: string) => void
   setLiveSiteModalOpen: (open: boolean) => void
   updateLiveSiteConfig: (patch: Partial<LiveSitePreviewConfig>) => void
+  setRenderedSiteToURLMap: (v: any[] | null) => void
+  setRenderedTemplateVars: (v: Record<string, any> | null) => void
   loadGamNativeJsonPreset: () => void
   loadGamVideoPreset: () => void
   loadHtml5Preset: () => void
@@ -316,6 +320,8 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
     adUnitId: '/23171577/expedia.fr_fr/hotels/results',
     sizeTargeting: '160x600',
   },
+  renderedSiteToURLMap: null,
+  renderedTemplateVars: null,
 
   setFormatMode: (mode) => set({ formatMode: mode, activePane: mode === 'json' ? 'json' : 'html' }),
   setJsonContent: (v) => set({ jsonContent: v }),
@@ -343,6 +349,8 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
     set((s) => ({ macroSubstitutions: { ...s.macroSubstitutions, [macro]: value } })),
   setLiveSiteModalOpen: (open) => set({ liveSiteModalOpen: open }),
   updateLiveSiteConfig: (patch) => set((s) => ({ liveSiteConfig: { ...s.liveSiteConfig, ...patch } })),
+  setRenderedSiteToURLMap: (v) => set({ renderedSiteToURLMap: v }),
+  setRenderedTemplateVars: (v) => set({ renderedTemplateVars: v }),
 
   loadGamNativeJsonPreset: () =>
     set({

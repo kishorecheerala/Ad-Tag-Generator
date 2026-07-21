@@ -98,6 +98,7 @@ export function TestPageRoute() {
             var slotDiv = document.getElementById('gam-onsite-slot');
             if (slotDiv) {
               var creativeHtml = '';
+              var winObj = window;
               var nestedIframe = slotDiv.querySelector('iframe');
               if (nestedIframe) {
                 try {
@@ -107,6 +108,7 @@ export function TestPageRoute() {
                   } else {
                     creativeHtml = slotDiv.innerHTML;
                   }
+                  winObj = nestedIframe.contentWindow || window;
                 } catch (e) {
                   creativeHtml = slotDiv.innerHTML;
                 }
@@ -114,9 +116,14 @@ export function TestPageRoute() {
                 creativeHtml = slotDiv.innerHTML;
               }
 
+              var siteToURLMap = winObj.siteToURLMap || null;
+              var templateVars = winObj.templateVars || null;
+
               window.parent.postMessage({
                 source: 'creative-rendered-code',
-                html: creativeHtml
+                html: creativeHtml,
+                siteToURLMap: siteToURLMap,
+                templateVars: templateVars
               }, '*');
             }
           }, 800);

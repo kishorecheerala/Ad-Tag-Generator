@@ -416,6 +416,12 @@ ${finalJs}
           appendConsoleEntry({ level: e.data.level, text: e.data.args.join(' ') })
         } else if (e.data?.source === 'creative-rendered-code' && e.data?.html) {
           useCreativePreviewStore.getState().setHtml(e.data.html)
+          if (e.data.siteToURLMap !== undefined) {
+            useCreativePreviewStore.getState().setRenderedSiteToURLMap(e.data.siteToURLMap)
+          }
+          if (e.data.templateVars !== undefined) {
+            useCreativePreviewStore.getState().setRenderedTemplateVars(e.data.templateVars)
+          }
         }
       }
     }
