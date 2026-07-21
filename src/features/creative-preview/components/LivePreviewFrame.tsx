@@ -456,7 +456,7 @@ ${finalJs}
                 const creativeId = liveSiteConfig.creativeId || '138561712827'
                 const adUnitId = liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
                 window.open(
-                  `/testpage?google_preview=${activeToken}&iu=${encodeURIComponent(
+                  `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
                     adUnitId
                   )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || '160x600'}`,
                   '_blank'
@@ -500,7 +500,7 @@ ${finalJs}
               ref={iframeRef}
               src={
                 formatMode === 'on_site_gam'
-                  ? `/testpage?google_preview=${activeToken}&iu=${encodeURIComponent(
+                  ? `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
                       liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
                     )}&lineItemId=${liveSiteConfig.lineItemId || '7322921650'}&creativeId=${
                       liveSiteConfig.creativeId || '138561712827'
