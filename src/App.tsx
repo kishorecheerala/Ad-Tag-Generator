@@ -212,7 +212,10 @@ function App() {
     }
     const cleanPath = tabPaths[activeTab]
     if (window.location.pathname !== cleanPath) {
-      window.history.pushState(null, '', cleanPath)
+      const searchParams = new URLSearchParams(window.location.search)
+      const hasPreview = searchParams.get('google_preview') || searchParams.get('googlesitepreview')
+      const targetUrl = hasPreview ? cleanPath + window.location.search : cleanPath
+      window.history.pushState(null, '', targetUrl)
     }
   }, [activeTab])
 
