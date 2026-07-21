@@ -25,10 +25,10 @@ export function TestPageRoute() {
     const hasPreview = searchParams.get('google_preview') || searchParams.get('googlesitepreview')
 
     if (hasPreview) {
-      const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || '/23171577/expedia.fr_fr/hotels_results'
+      const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || '/23171577/expedia.fr_fr/hotels/results'
       let iu = rawIu.trim().startsWith('/') ? rawIu.trim() : '/' + rawIu.trim()
       if (iu === '/23171577' || iu === '23171577') {
-        iu = '/23171577/expedia.fr_fr/hotels_results'
+        iu = '/23171577/expedia.fr_fr/hotels/results'
       }
       const sz = searchParams.get('sz') || searchParams.get('size') || '160x600'
       const parsedSize = sz === 'fluid' ? "'fluid'" : sz.includes('x') ? `[${sz.split('x').join(', ')}]` : `[160, 600]`

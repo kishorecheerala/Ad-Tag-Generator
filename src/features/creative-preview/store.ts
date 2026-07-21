@@ -205,7 +205,7 @@ export const DEFAULT_MACRO_SUBSTITUTIONS: Record<string, string> = {
   '[%VideoId%]': 'vid_stream_771',
   '%eaid!': '7322921650',
   '%ecid!': '138561712827',
-  '%epid!': '/23171577/expedia.fr_fr/hotels_results',
+  '%epid!': '/23171577/expedia.fr_fr/hotels/results',
   '[%CreativeType%]': 'NativeCustomFormat',
   '[%PartnerCode%]': 'PARTNER_MCM_01',
   '[%SitePath1%]': '/tech/news',
@@ -313,7 +313,7 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
     siteUrl: 'https://example.com/article-demo',
     lineItemId: '7322921650',
     creativeId: '138561712827',
-    adUnitId: '/23171577/expedia.fr_fr/hotels_results',
+    adUnitId: '/23171577/expedia.fr_fr/hotels/results',
     sizeTargeting: '160x600',
   },
 

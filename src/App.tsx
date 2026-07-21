@@ -149,7 +149,7 @@ function App() {
       const creativeParam = searchParams.get('creativeId') || searchParams.get('creative')
       const sizeParam = searchParams.get('sz') || searchParams.get('size')
 
-      let effectiveAdUnit = useCreativePreviewStore.getState().liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels_results'
+      let effectiveAdUnit = useCreativePreviewStore.getState().liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
       if (adUnitParam) {
         const decoded = decodeURIComponent(adUnitParam).trim()
         const countSlashes = (decoded.match(/\//g) || []).length
@@ -162,7 +162,7 @@ function App() {
       const cleanedPath = effectiveAdUnit.trim()
       const normalizedPath = cleanedPath.startsWith('/') ? cleanedPath : '/' + cleanedPath
       if (normalizedPath === '/23171577' || normalizedPath === '/23171577/') {
-        effectiveAdUnit = '/23171577/expedia.fr_fr/hotels_results'
+        effectiveAdUnit = '/23171577/expedia.fr_fr/hotels/results'
       } else if (normalizedPath === '/82109981' || normalizedPath === '/82109981/') {
         effectiveAdUnit = '/82109981/homepage_top'
       } else {
