@@ -153,10 +153,10 @@ function App() {
         targetTab = 'creative'
         useCreativePreviewStore.getState().setFormatMode('on_site_gam')
         useCreativePreviewStore.getState().updateLiveSiteConfig({
-          adUnitId: adUnitParam || '/82109981/homepage_top',
-          lineItemId: lineItemParam || '8872190',
-          creativeId: creativeParam || '44102938',
-          sizeTargeting: sizeParam || '300x250',
+          adUnitId: adUnitParam || '/23171577/expedia.fr_fr/hotels results',
+          lineItemId: lineItemParam || '7322921650',
+          creativeId: creativeParam || '138561712827',
+          sizeTargeting: sizeParam || '160x600',
         })
         useCreativePreviewStore.getState().run()
         toast.success('GAM On-Site Preview link detected! Rendering creative live on page...')
@@ -170,7 +170,7 @@ function App() {
         setActiveTab(targetTab)
       }
 
-      // Transition browser location pathname cleanly to avoid keeping configuration payload in query/hash
+      // Transition browser location pathname cleanly (PRESERVE query string if google_preview is present!)
       const tabPaths: Record<AppTab, string> = {
         settings: '/tagsettings',
         decoder: '/decoder',
@@ -178,7 +178,11 @@ function App() {
         creative: '/creative'
       }
       const cleanPath = tabPaths[targetTab]
-      if (window.location.pathname !== cleanPath || window.location.hash !== '' || window.location.search !== '') {
+      if (googlePreviewParam) {
+        if (window.location.pathname !== cleanPath) {
+          window.history.replaceState(null, '', cleanPath + window.location.search)
+        }
+      } else if (window.location.pathname !== cleanPath || window.location.hash !== '' || window.location.search !== '') {
         window.history.replaceState(null, '', cleanPath)
       }
     }
