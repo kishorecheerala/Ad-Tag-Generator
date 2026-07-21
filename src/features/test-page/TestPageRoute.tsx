@@ -92,6 +92,34 @@ export function TestPageRoute() {
             '<div class="as-info-row"><span>Creative ID:</span><span class="info-tag">' + (event.creativeId || '${creativeId}') + '</span></div>' +
             '<div class="as-info-row"><span>Advertiser ID:</span><span>' + (event.advertiserId || 'N/A') + '</span></div>' +
             '<div class="as-info-row"><span>Rendered Size:</span><span>' + (event.size ? event.size[0] + 'x' + event.size[1] : '${sz}') + '</span></div>';
+
+          // Extract creative HTML code and post it to parent window
+          setTimeout(function() {
+            var slotDiv = document.getElementById('gam-onsite-slot');
+            if (slotDiv) {
+              var creativeHtml = '';
+              var nestedIframe = slotDiv.querySelector('iframe');
+              if (nestedIframe) {
+                try {
+                  var nestedDoc = nestedIframe.contentDocument || nestedIframe.contentWindow.document;
+                  if (nestedDoc && nestedDoc.documentElement) {
+                    creativeHtml = nestedDoc.documentElement.outerHTML;
+                  } else {
+                    creativeHtml = slotDiv.innerHTML;
+                  }
+                } catch (e) {
+                  creativeHtml = slotDiv.innerHTML;
+                }
+              } else {
+                creativeHtml = slotDiv.innerHTML;
+              }
+
+              window.parent.postMessage({
+                source: 'creative-rendered-code',
+                html: creativeHtml
+              }, '*');
+            }
+          }, 800);
         }
       }
     });
