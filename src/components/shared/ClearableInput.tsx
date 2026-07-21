@@ -17,7 +17,7 @@ export function ClearableInput({ value, onClear, className, ...props }: Clearabl
           type="button"
           onClick={onClear}
           title="Clear"
-          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full p-0.5 text-red-500 hover:bg-red-500/15 hover:text-red-600 transition-colors"
         >
           <X className="size-3.5" />
         </button>

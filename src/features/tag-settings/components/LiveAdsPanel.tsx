@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, MonitorPlay, RefreshCw } from 'lucide-react'
+import { ExternalLink, MonitorPlay, RefreshCw, Laptop, Tablet, Smartphone } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -14,6 +14,7 @@ export function LiveAdsPanel() {
   const regenerateCorrelator = useTagSettingsStore((s) => s.regenerateCorrelator)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(300)
+  const [viewportWidth, setViewportWidth] = useState<'100%' | '768px' | '360px'>('100%')
 
   const srcDoc = useMemo(
     () => generateStagingHtml(snapshot, { isPreview: true, isDark: theme === 'dark' }),
@@ -76,34 +77,69 @@ export function LiveAdsPanel() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle>Live Ads</CardTitle>
-        <div className="flex items-center gap-1">
-          <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Open Test Page (real /testpage route, new tab)" onClick={() => openTestPageRoute(false)}>
-            <ExternalLink className="size-3.5" />
-          </Button>
-          <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Open Google Publisher Console (real /testpage route, new tab)" onClick={() => openTestPageRoute(true)}>
-            <MonitorPlay className="size-3.5" />
-          </Button>
-          <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Refresh Live Ads (new ad request)" onClick={regenerateCorrelator}>
-            <RefreshCw className="size-3.5" />
-          </Button>
+        <div className="flex items-center gap-3">
+          {/* Viewport controls */}
+          <div className="flex border rounded-md p-0.5 bg-muted/40 text-muted-foreground">
+            <Button
+              size="icon-sm"
+              variant={viewportWidth === '100%' ? 'default' : 'ghost'}
+              onClick={() => setViewportWidth('100%')}
+              title="Desktop View (100% width)"
+            >
+              <Laptop className="size-3.5" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant={viewportWidth === '768px' ? 'default' : 'ghost'}
+              onClick={() => setViewportWidth('768px')}
+              title="Tablet View (768px width)"
+            >
+              <Tablet className="size-3.5" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant={viewportWidth === '360px' ? 'default' : 'ghost'}
+              onClick={() => setViewportWidth('360px')}
+              title="Mobile View (360px width)"
+            >
+              <Smartphone className="size-3.5" />
+            </Button>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Open Test Page (real /testpage route, new tab)" onClick={() => openTestPageRoute(false)}>
+              <ExternalLink className="size-3.5" />
+            </Button>
+            <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Open Google Publisher Console (real /testpage route, new tab)" onClick={() => openTestPageRoute(true)}>
+              <MonitorPlay className="size-3.5" />
+            </Button>
+            <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Refresh Live Ads (new ad request)" onClick={regenerateCorrelator}>
+              <RefreshCw className="size-3.5" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         {snapshot.slots.length === 0 ? (
           <EmptyState>No slots configured.</EmptyState>
         ) : (
-          <iframe
-            ref={iframeRef}
-            srcDoc={srcDoc}
-            title="Live Ads preview"
-            className="w-full border-0 bg-white"
-            style={{ height }}
-          />
+          <div className="flex w-full justify-center bg-muted/20 p-2 overflow-x-auto">
+            <iframe
+              ref={iframeRef}
+              srcDoc={srcDoc}
+              title="Live Ads preview"
+              className="border border-border bg-white rounded-md shadow-md transition-all duration-300"
+              style={{ height, width: viewportWidth, maxWidth: '100%' }}
+            />
+          </div>
         )}
         <div className="border-t border-border px-3 py-1.5 text-right text-[11px] text-muted-foreground">
           Slots: <span className="font-semibold text-foreground">{snapshot.slots.length}</span>
+          {viewportWidth !== '100%' && (
+            <span className="ml-2 font-mono">| Viewport: {viewportWidth === '768px' ? '768px (Tablet)' : '360px (Mobile)'}</span>
+          )}
         </div>
       </CardContent>
     </Card>

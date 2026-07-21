@@ -39,6 +39,141 @@ export function generateStagingHtml(state: TagSettingsState, options: GenerateSt
   const requestTypeLabel = state.isSingleRequestArchitectureEnabled ? 'SRA' : 'Standard'
   const networkId = state.parentNetwork
 
+  // -- Pre-paint script for Network Request Interception --
+  const networkRequestInterceptorScriptCode = `
+  <script>
+  (function() {
+    var originalXHR = window.XMLHttpRequest;
+    var originalFetch = window.fetch;
+    var originalCreateElement = document.createElement;
+    var originalImage = window.Image;
+
+    function logNetwork(type, url, method, data) {
+      if (!url) return;
+      if (url.indexOf('/diag-log') !== -1 || url.indexOf('storage') !== -1 || url.indexOf('jquery') !== -1 || url.indexOf('imasdk') !== -1) return;
+
+      var isGoogleAd = url.indexOf('securepubads.g.doubleclick.net') !== -1 || url.indexOf('pubads.g.doubleclick.net') !== -1;
+      var isTracking = url.indexOf('click') !== -1 || url.indexOf('pixel') !== -1 || url.indexOf('tracking') !== -1 || url.indexOf('impression') !== -1;
+
+      var category = isGoogleAd ? 'AD_REQUEST' : (isTracking ? 'TRACKING_PIXEL' : 'NETWORK_REQUEST');
+      var name = isGoogleAd ? 'Google Ad Request' : (isTracking ? 'Tracking / Impression Pixel' : 'Network Request');
+
+      var parsedUrl;
+      try {
+        parsedUrl = new URL(url, window.location.href);
+      } catch (e) {
+        try {
+          parsedUrl = new URL(url, window.location.origin);
+        } catch (e2) {
+          return;
+        }
+      }
+
+      var params = {};
+      parsedUrl.searchParams.forEach(function(val, key) {
+        params[key] = val;
+      });
+
+      var details = {
+        url: url,
+        method: method || 'GET',
+        domain: parsedUrl.hostname,
+        path: parsedUrl.pathname,
+        queryParams: params
+      };
+
+      if (isGoogleAd) {
+        if (params.iu) details.adUnitPath = params.iu;
+        if (params.sz) details.sizes = params.sz;
+        if (params.scp) details.slotTargeting = params.scp;
+        if (params.prev_scp) details.pageTargeting = params.prev_scp;
+        if (params.correlator) details.correlator = params.correlator;
+        if (params.gdpr_consent) details.consentString = params.gdpr_consent;
+      }
+
+      if (window.addDiagLogToConsole) {
+        window.addDiagLogToConsole(category, name, parsedUrl.hostname, details);
+      } else {
+        window.pendingNetworkLogs = window.pendingNetworkLogs || [];
+        window.pendingNetworkLogs.push({ category: category, name: name, host: parsedUrl.hostname, details: details });
+      }
+    }
+
+    // Intercept Fetch
+    window.fetch = function(input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+      var method = (init && init.method) || 'GET';
+      logNetwork('fetch', url, method, init && init.body);
+      return originalFetch.apply(this, arguments);
+    };
+
+    // Intercept XHR
+    window.XMLHttpRequest = function() {
+      var xhr = new originalXHR();
+      var open = xhr.open;
+      var send = xhr.send;
+      var method, url;
+
+      xhr.open = function(m, u) {
+        method = m;
+        url = u;
+        return open.apply(this, arguments);
+      };
+
+      xhr.send = function(data) {
+        logNetwork('xhr', url, method, data);
+        return send.apply(this, arguments);
+      };
+
+      return xhr;
+    };
+
+    // Intercept Image elements (pixel tracking)
+    document.createElement = function(tagName) {
+      var el = originalCreateElement.apply(this, arguments);
+      if (tagName && tagName.toLowerCase() === 'img') {
+        var originalSetAttribute = el.setAttribute;
+
+        Object.defineProperty(el, 'src', {
+          set: function(val) {
+            logNetwork('img-src', val, 'GET');
+            el.setAttribute('src', val);
+          },
+          get: function() {
+            return el.getAttribute('src');
+          }
+        });
+
+        el.setAttribute = function(name, val) {
+          if (name && name.toLowerCase() === 'src') {
+            logNetwork('img-src', val, 'GET');
+          }
+          return originalSetAttribute.apply(this, arguments);
+        };
+      }
+      return el;
+    };
+
+    // Intercept Image constructor
+    if (originalImage) {
+      window.Image = function() {
+        var img = new originalImage();
+        Object.defineProperty(img, 'src', {
+          set: function(val) {
+            logNetwork('img-constructor', val, 'GET');
+            img.setAttribute('src', val);
+          },
+          get: function() {
+            return img.getAttribute('src');
+          }
+        });
+        return img;
+      };
+    }
+  })();
+  </script>
+  `
+
   // -- Pre-paint script for Geolocation and GPT location/targeting spoofing --
   const locationSpoofPrepaintScriptCode = `
   <script>
@@ -121,6 +256,239 @@ export function generateStagingHtml(state: TagSettingsState, options: GenerateSt
   <\/script>
   `;
 
+  // -- Pre-paint script for Geolocation, Privacy, Prebid and SafeFrame troubleshooting --
+  const troubleshootingPrepaintScriptCode = `
+  <script>
+  (function() {
+    // 1. Helper to send diagnostic logs back to the parent React app
+    function sendDiagLog(type, eventName, slotId, details) {
+      try {
+        window.parent.postMessage({
+          source: 'gpt-troubleshooter-iframe',
+          type: type,
+          eventName: eventName,
+          slotId: slotId || 'page-level',
+          details: details || {},
+          timestamp: Date.now()
+        }, '*');
+      } catch (err) {}
+      
+      console.log('[DiagLog] [' + type + '] ' + eventName + ' (' + (slotId || 'page-level') + ')', details);
+      if (typeof window.addDiagLogToConsole === 'function') {
+        window.addDiagLogToConsole(type, eventName, slotId, details);
+      }
+    }
+
+    // 2. SafeFrame postMessage listener
+    window.addEventListener('message', function(event) {
+      if (!event.data || typeof event.data !== 'string') return;
+      var d = event.data;
+      if (d.indexOf('googletag_') !== -1 || d.indexOf('safeframe') !== -1 || d.indexOf('sentinel') !== -1) {
+        var action = 'unknown';
+        var parsed = null;
+        try { parsed = JSON.parse(d); } catch (e) {}
+        
+        if (parsed && parsed.action) {
+          action = parsed.action;
+        } else if (d.indexOf('expand') !== -1) {
+          action = 'expand';
+        } else if (d.indexOf('collapse') !== -1) {
+          action = 'collapse';
+        } else if (d.indexOf('resize') !== -1) {
+          action = 'resize';
+        }
+        
+        if (action !== 'unknown') {
+          sendDiagLog('SAFEFRAME_EVENT', action, null, { payload: d.substring(0, 300) });
+        }
+      }
+    });
+
+    // 3. IAB TCF and USP API Simulator
+    var consentMode = '${state.privacyConsent || 'none'}';
+    if (consentMode !== 'none') {
+      window.__tcfapi = function(command, version, callback, parameter) {
+        var tcString = consentMode === 'accepted' ? 'CP123456789...' : (consentMode === 'rejected' ? 'CP00000000...' : '${state.customConsentString || 'CP12345...' }');
+        var gdprApplies = true;
+        var mockTcData = {
+          tcString: tcString,
+          gdprApplies: gdprApplies,
+          eventStatus: 'tcloaded',
+          cmpStatus: 'loaded',
+          cmpLoaded: true,
+          purpose: {
+            consents: consentMode === 'accepted' ? { '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true, '8': true, '9': true, '10': true } : {}
+          },
+          vendor: {
+            consents: consentMode === 'accepted' ? { '150': true, '28': true, '24': true } : {}
+          }
+        };
+
+        if (command === 'ping') {
+          if (typeof callback === 'function') callback({ cmpLoaded: true, apiReady: true });
+        } else if (command === 'addEventListener' || command === 'getTCData') {
+          if (typeof callback === 'function') callback(mockTcData, true);
+        }
+      };
+
+      // CCPA / US Privacy mock
+      window.__uspapi = function(command, version, callback) {
+        if (command === 'getUSPData') {
+          var uspString = consentMode === 'accepted' ? '1YNN' : '1YYN';
+          if (typeof callback === 'function') callback({ version: 1, uspString: uspString }, true);
+        }
+      };
+
+      window.googletag = window.googletag || { cmd: [] };
+      googletag.cmd.push(function() {
+        if (googletag.pubads) {
+          if (consentMode === 'rejected') {
+            googletag.pubads().setRequestNonPersonalizedAds(1);
+          } else {
+            googletag.pubads().setRequestNonPersonalizedAds(0);
+          }
+        }
+      });
+    }
+
+    // 4. Prebid.js API Simulator
+    var prebidEnabled = ${state.prebidEnabled ? 'true' : 'false'};
+    if (prebidEnabled) {
+      window.pbjs = window.pbjs || {};
+      pbjs.que = pbjs.que || [];
+      
+      var simulatedBids = ${JSON.stringify(state.prebidBids || [])};
+      var appliedTargeting = {};
+      
+      simulatedBids.forEach(function(bid, index) {
+        var key = 'div-gpt-ad-' + ${state.correlator} + '-' + index;
+        appliedTargeting[key] = {
+          hb_bidder: bid.bidder,
+          hb_pb: parseFloat(bid.cpm).toFixed(2),
+          hb_adid: 'pb-mock-adid-' + index,
+          hb_size: bid.size
+        };
+      });
+
+      pbjs.setTargetingForGPTAsync = function(adUnitCodes) {
+        googletag.cmd.push(function() {
+          var slots = googletag.pubads().getSlots();
+          slots.forEach(function(slot) {
+            var divId = slot.getSlotElementId();
+            var targetObj = appliedTargeting[divId];
+            if (!targetObj) {
+              var idx = slots.indexOf(slot);
+              var fallbackKey = 'div-gpt-ad-' + ${state.correlator} + '-' + idx;
+              targetObj = appliedTargeting[fallbackKey];
+            }
+            if (targetObj) {
+              for (var k in targetObj) {
+                if (targetObj.hasOwnProperty(k)) {
+                  slot.setTargeting(k, targetObj[k]);
+                }
+              }
+              sendDiagLog('PREBID_EVENT', 'Prebid Targeting Applied', divId, targetObj);
+            }
+          });
+        });
+      };
+      
+      googletag.cmd.push(pbjs.setTargetingForGPTAsync);
+    }
+
+    // 5. GPT Lifecycle Event Handlers
+    window.googletag = window.googletag || { cmd: [] };
+    googletag.cmd.push(function() {
+      if (typeof googletag.pubads === 'function') {
+        var p = googletag.pubads();
+        
+        function updateLazyStatus(slot, state, extra) {
+          if (!${state.lazyLoadEnabled}) return;
+          var adSlots = googletag.pubads().getSlots();
+          var slotIndex = adSlots.indexOf(slot);
+          if (slotIndex === -1) return;
+          var num = slotIndex + 1;
+          
+          var dot = document.getElementById('lazy-dot' + num);
+          var txt = document.getElementById('lazy-text' + num);
+          var bar = document.getElementById('lazy-status-bar' + num);
+          var vis = document.getElementById('lazy-visibility' + num);
+          
+          if (!dot || !txt || !bar) return;
+          
+          if (state === 'requested') {
+            txt.innerText = 'Fetching Ad (Fetch Margin Crossed)';
+            dot.className = 'lazy-status-dot fetching';
+          } else if (state === 'received') {
+            txt.innerText = 'Response Received';
+            dot.className = 'lazy-status-dot received';
+          } else if (state === 'rendered') {
+            txt.innerText = 'Rendered (Render Margin Crossed)';
+            dot.className = 'lazy-status-dot rendered';
+          } else if (state === 'viewable') {
+            txt.innerText = 'Viewable Impression';
+            dot.className = 'lazy-status-dot viewed';
+          } else if (state === 'visibility') {
+            if (vis) {
+              vis.style.display = 'inline-block';
+              vis.innerText = 'Vis: ' + extra + '%';
+            }
+          }
+        }
+        
+        p.addEventListener('slotRequested', function(e) {
+          updateLazyStatus(e.slot, 'requested');
+          var eventName = 'slotRequested';
+          var details = {
+            path: e.slot.getAdUnitPath(),
+            sizes: e.slot.getSizes().map(function(s) {
+              return typeof s === 'string' ? s : s.getWidth() + 'x' + s.getHeight();
+            }).join(', ')
+          };
+          if (${state.lazyLoadEnabled}) {
+            eventName += ' (Lazy Load Fetch)';
+            details.fetchMargin = '${state.lazyLoadFetchMarginPercent}%';
+          }
+          sendDiagLog('GPT_EVENT', eventName, e.slot.getSlotElementId(), details);
+        });
+        
+        p.addEventListener('slotResponseReceived', function(e) {
+          updateLazyStatus(e.slot, 'received');
+          sendDiagLog('GPT_EVENT', 'slotResponseReceived', e.slot.getSlotElementId(), {});
+        });
+        
+        p.addEventListener('slotRenderEnded', function(e) {
+          updateLazyStatus(e.slot, 'rendered');
+          var eventName = 'slotRenderEnded';
+          var details = {
+            isEmpty: e.isEmpty,
+            advertiserId: e.advertiserId,
+            campaignId: e.campaignId,
+            lineItemId: e.lineItemId,
+            creativeId: e.creativeId,
+            size: e.size ? e.size[0] + 'x' + e.size[1] : 'N/A'
+          };
+          if (${state.lazyLoadEnabled}) {
+            eventName += ' (Lazy Load Render)';
+            details.renderMargin = '${state.lazyLoadRenderMarginPercent}%';
+          }
+          sendDiagLog('GPT_EVENT', eventName, e.slot.getSlotElementId(), details);
+        });
+        
+        p.addEventListener('impressionViewable', function(e) {
+          updateLazyStatus(e.slot, 'viewable');
+          sendDiagLog('GPT_EVENT', 'impressionViewable', e.slot.getSlotElementId(), {});
+        });
+        
+        p.addEventListener('slotVisibilityChanged', function(e) {
+          updateLazyStatus(e.slot, 'visibility', e.visibleArea);
+        });
+      }
+    });
+  })();
+  <\/script>
+  `;
+
   // -- Head Script (the actually-executed script) --
   let stagingHeadScriptCode = ''
   if (state.customHeaderCode !== null) {
@@ -191,6 +559,14 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
               <b>Ad Unit:</b> ${escHtml(slot.path)}<br>
               <b>Ad slot Size:</b> ${sizesDisplayString}
               ${targetingString ? '<br><b>Custom Targeting:</b> ' + escHtml(targetingString) : ''}
+              ${state.lazyLoadEnabled ? `
+              <div class="lazy-status-bar" id="lazy-status-bar${slotDisplayNumber}">
+                <span class="lazy-status-dot-wrapper">
+                  <span class="lazy-status-dot" id="lazy-dot${slotDisplayNumber}"></span>
+                  <span>Lazy Load: <strong id="lazy-text${slotDisplayNumber}">Idle (Awaiting Scroll)</strong></span>
+                </span>
+                <span class="lazy-status-visibility" id="lazy-visibility${slotDisplayNumber}" style="display: none;">Vis: 0%</span>
+              </div>` : ''}
               <div class="asInfo as-info-wrapper" id="asInfo-wrapper${slotDisplayNumber}">
                 <div class="as-info-grid hidden-element" id="asinfo${slotDisplayNumber}">
                   <div class="as-info-item"><b>Advertiser ID:</b> <em id="aid${slotDisplayNumber}"></em><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="copy-icon" onclick="copyText('aid${slotDisplayNumber}')"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></div>
@@ -304,11 +680,26 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   if (state.videoEnabled) {
     const generatedVastUrl = buildVastUrl(state, networkBaseSlotPath)
     vastDisplayBlockHtml = `
-  <div class="shorturl vast-tag-container">
+  <div class="shorturl vast-tag-container" style="margin-bottom: 16px;">
     <p class="vast-tag-title"><b>Video Tag (VAST) URL:</b></p>
     <a href="${generatedVastUrl}" target="_blank" class="vast-tag-link">${generatedVastUrl}</a>
     <div class="vast-tag-btn-box">
-      <a href="https://googleads.github.io/googleads-ima-html5/vsi/?tag=${encodeURIComponent(generatedVastUrl)}" target="_blank" class="vast-tag-btn">VAST Inspector</a>
+      <a href="https://googleads.github.io/googleads-ima-html5/vsi/?tag=${encodeURIComponent(generatedVastUrl)}" target="_blank" class="vast-tag-btn">External VAST Inspector</a>
+    </div>
+  </div>
+  
+  <!-- Embedded Video Ad Player Card -->
+  <div class="vast-player-card">
+    <div class="vast-player-header">
+      <span class="vast-player-title">Embedded VAST Ad Player</span>
+      <button class="btn-staging-action btn-back" id="play-vast-btn" onclick="playVastAd()" style="font-weight: 700;">
+        <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Load & Play Video Ad
+      </button>
+    </div>
+    <div class="vast-player-wrapper" style="position: relative; background: #000;">
+      <video id="vast-content-video" style="width: 100%; height: 100%; display: block;" playsinline controls></video>
+      <div id="vast-ad-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto; z-index: 10;"></div >
     </div>
   </div>`
   }
@@ -321,11 +712,120 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   if (state.disableCookies) settingsInfoHtml += '<b>Cookies Disabled:</b> Yes<br>\n  '
   if (state.adsenseEnabled) settingsInfoHtml += '<b>AdSense Settings:</b> Enabled<br>\n  '
 
-  // When the Publisher Console is requested, open it once GPT is ready. When it
-  // isn't, fully disable it (not just hide the panel) so the live network can't
-  // auto-open it and leave the per-slot "Delivery Tools" overlay showing while
-  // the panel is gone. disablePublisherConsole must run before enableServices,
-  // so it's pushed ahead of the head script; openConsole runs after.
+  const imaSdkScriptCode = state.videoEnabled
+    ? `\n<script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>`
+    : ''
+
+  const embeddedPlayerScriptCode = state.videoEnabled
+    ? `
+  <script>
+  (function() {
+    var adsLoader;
+    var adsManager;
+    var adDisplayContainer;
+    
+    window.playVastAd = function() {
+      var playButton = document.getElementById('play-vast-btn');
+      var videoContent = document.getElementById('vast-content-video');
+      var adContainer = document.getElementById('vast-ad-container');
+
+      if (!window.google || !window.google.ima) {
+        window.addDiagLogToConsole('SYSTEM_ERROR', 'Google IMA SDK failed to load. Ad cannot play.', 'video-player', {});
+        return;
+      }
+
+      // Initialize container
+      if (!adDisplayContainer) {
+        adDisplayContainer = new google.ima.AdDisplayContainer(adContainer, videoContent);
+      }
+      adDisplayContainer.initialize();
+
+      // Initialize loader
+      if (!adsLoader) {
+        adsLoader = new google.ima.AdsLoader(adDisplayContainer);
+        adsLoader.addEventListener(
+          google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
+          onAdsManagerLoaded,
+          false
+        );
+        adsLoader.addEventListener(
+          google.ima.AdErrorEvent.Type.AD_ERROR,
+          onAdError,
+          false
+        );
+      }
+
+      var adsRequest = new google.ima.AdsRequest();
+      adsRequest.adTagUrl = '${buildVastUrl(state, networkBaseSlotPath)}';
+      adsRequest.linearAdSizeWidth = 640;
+      adsRequest.linearAdSizeHeight = 360;
+      adsRequest.nonLinearAdSizeWidth = 640;
+      adsRequest.nonLinearAdSizeHeight = 360;
+
+      window.addDiagLogToConsole('VAST_EVENT', 'Ad Request Sent', 'video-player', { tag: adsRequest.adTagUrl });
+      adsLoader.requestAds(adsRequest);
+    };
+
+    function onAdsManagerLoaded(adsManagerLoadedEvent) {
+      var videoContent = document.getElementById('vast-content-video');
+      var adsRenderingSettings = new google.ima.AdsRenderingSettings();
+      adsRenderingSettings.restoreHeaderAdPlay = true;
+
+      adsManager = adsManagerLoadedEvent.getAdsManager(videoContent, adsRenderingSettings);
+
+      // Add listeners
+      adsManager.addEventListener(google.ima.AdErrorEvent.Type.AD_ERROR, onAdError);
+
+      var events = [
+        google.ima.AdEvent.Type.ALL_ADS_COMPLETED,
+        google.ima.AdEvent.Type.CLICK,
+        google.ima.AdEvent.Type.COMPLETE,
+        google.ima.AdEvent.Type.FIRST_QUARTILE,
+        google.ima.AdEvent.Type.LOADED,
+        google.ima.AdEvent.Type.MIDPOINT,
+        google.ima.AdEvent.Type.PAUSE,
+        google.ima.AdEvent.Type.RESUME,
+        google.ima.AdEvent.Type.STARTED,
+        google.ima.AdEvent.Type.THIRD_QUARTILE,
+        google.ima.AdEvent.Type.VOLUME_CHANGED,
+        google.ima.AdEvent.Type.VOLUME_MUTED
+      ];
+
+      events.forEach(function(eventType) {
+        adsManager.addEventListener(eventType, function(adEvent) {
+          var ad = adEvent.getAd();
+          var details = {};
+          if (ad) {
+            details.title = ad.getTitle();
+            details.creativeId = ad.getCreativeId();
+            details.adId = ad.getAdId();
+            details.duration = ad.getDuration() + 's';
+          }
+          window.addDiagLogToConsole('VAST_EVENT', adEvent.type, 'video-player', details);
+        });
+      });
+
+      try {
+        adsManager.init(640, 360, google.ima.ViewMode.NORMAL);
+        adsManager.start();
+        window.addDiagLogToConsole('VAST_EVENT', 'AdsManager Started', 'video-player', {});
+      } catch (adError) {
+        window.addDiagLogToConsole('SYSTEM_ERROR', adError.toString(), 'video-player', {});
+      }
+    }
+
+    function onAdError(adErrorEvent) {
+      var err = adErrorEvent.getError();
+      window.addDiagLogToConsole('SYSTEM_ERROR', err.getMessage(), 'video-player', { code: err.getErrorCode() });
+      if (adsManager) {
+        adsManager.destroy();
+      }
+    }
+  })();
+  </script>
+  `
+    : ''
+
   const consoleDisableScriptCode = options.pubConsole
     ? ''
     : `\n<scr` +
@@ -346,6 +846,76 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   const liveReloadScriptCode = options.liveReload
     ? `\n<scr` + `ipt>window.addEventListener('storage',function(e){if(e.key==='adTagTestPageConfig')location.reload();});<\/scr` + `ipt>`
     : ''
+
+  const diagnosticsConsoleHtml = options.isPreview ? '' : `
+    <div class="diag-console-card">
+      <div class="diag-console-header" onclick="toggleDiagConsole()">
+        <span class="diag-console-title">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+          Ad Tech Troubleshooting &amp; Diagnostics Console
+        </span>
+        <div class="diag-console-actions">
+          <span class="diag-badge" id="diag-badge-count">0 Events</span>
+          <span class="diag-console-toggle-icon" id="diag-toggle-icon">▼</span>
+        </div>
+      </div>
+      <div class="diag-console-body" id="diag-console-body-content" style="display: flex;">
+        <!-- Tabs for Logs -->
+        <div class="diag-tabs">
+          <button class="diag-tab-btn active" onclick="switchDiagTab(event, 'diag-tab-gpt')">GPT Event Timeline</button>
+          <button class="diag-tab-btn" onclick="switchDiagTab(event, 'diag-tab-network')">Network Inspector</button>
+          ${state.videoEnabled ? `<button class="diag-tab-btn" onclick="switchDiagTab(event, 'diag-tab-vast')">Video Ad Logs</button>` : ''}
+          <button class="diag-tab-btn" onclick="switchDiagTab(event, 'diag-tab-prebid')">Prebid.js Mocks</button>
+          <button class="diag-tab-btn" onclick="switchDiagTab(event, 'diag-tab-safeframe')">SafeFrame Audits</button>
+          <button class="diag-tab-btn" onclick="switchDiagTab(event, 'diag-tab-consent')">CMP &amp; Privacy</button>
+        </div>
+        
+        <!-- Tab Content -->
+        <div class="diag-tab-panel active" id="diag-tab-gpt">
+          <div class="diag-log-list" id="gpt-log-list">
+            <div class="diag-log-empty">Waiting for GPT events... Make sure scripts are executing.</div>
+          </div>
+        </div>
+
+        <div class="diag-tab-panel" id="diag-tab-network">
+          <div class="diag-log-list" id="network-log-list">
+            <div class="diag-log-empty">Waiting for network requests (Fetch, XHR, image beacons)...</div>
+          </div>
+        </div>
+
+        ${state.videoEnabled ? `
+        <div class="diag-tab-panel" id="diag-tab-vast">
+          <div class="diag-log-list" id="vast-log-list">
+            <div class="diag-log-empty">No video events loaded. Click "Load & Play Video Ad" above.</div>
+          </div>
+        </div>
+        ` : ''}
+        
+        <div class="diag-tab-panel" id="diag-tab-prebid">
+          <div class="diag-info-box">
+            <b>Prebid Status:</b> ${state.prebidEnabled ? '<span style="color:#22c55e">Enabled</span>' : '<span style="color:#a1a1aa">Disabled</span>'}<br>
+            ${state.prebidEnabled ? 'Auction simulation completed. Bids injected into GPT slots.' : 'Enable Prebid Simulation in settings to inject programmatic bids.'}
+          </div>
+          <div class="diag-log-list" id="prebid-log-list">
+            ${state.prebidEnabled ? '' : '<div class="diag-log-empty">No bids simulated.</div>'}
+          </div>
+        </div>
+        
+        <div class="diag-tab-panel" id="diag-tab-safeframe">
+          <div class="diag-log-list" id="safeframe-log-list">
+            <div class="diag-log-empty">No SafeFrame postMessage interactions recorded.</div>
+          </div>
+        </div>
+        
+        <div class="diag-tab-panel" id="diag-tab-consent">
+          <div class="diag-info-box">
+            <b>CMP Simulation Mode:</b> <span style="font-weight:bold; text-transform:uppercase;">${state.privacyConsent || 'none'}</span><br>
+            <b>Consent String (tcString):</b> <code style="word-break:break-all; font-size:11px;">${state.privacyConsent === 'none' ? 'N/A' : (state.privacyConsent === 'accepted' ? 'CP123456789... (Full Consent)' : (state.privacyConsent === 'rejected' ? 'CP00000000... (Restricted)' : state.customConsentString || 'N/A'))}</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
 
   let bodyContent = ''
   if (options.isPreview) {
@@ -419,28 +989,7 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       </select>
     `
 
-    const headerToolbarHtml = `
-      <div class="testpage-header">
-        <div class="testpage-header-left">
-          <a href="/" class="testpage-logo">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-            Back to Home
-          </a>
-        </div>
-        <div class="testpage-header-right">
-          <span style="font-size: 11px; color: ${isDark ? '#71717a' : '#64748b'}; font-weight: 500; font-family: sans-serif;">Spoof Location:</span>
-          ${selectHtml}
-          <button class="btn-header-action" onclick="location.reload()">
-            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-            Refresh
-          </button>
-        </div>
-      </div>
-    `
-
     bodyContent = `
-  ${headerToolbarHtml}
-  
   <div id="custom-geo-modal" class="geo-modal-overlay hidden-element">
     <div class="geo-modal-content">
       <div class="geo-modal-header">
@@ -482,15 +1031,65 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
   </div>
 
   <div class="staging-container" id="DFPTagsController">
-    <p id="stage-title"><b>Network ID: ${networkDisplayLabel}</b></p>
-    <br>
-    <p>
-      <b>Tag type:</b> ${tagTypeLabel}<br>
-      <b>Request type:</b> ${requestTypeLabel}<br>
-      ${settingsInfoHtml}
-    </p>
-    <br>
-    <hr>
+    <!-- Clean Beautiful Staging Container Header -->
+    <div class="staging-header">
+      <div class="staging-header-info">
+        <h1 class="staging-page-title">Test Page</h1>
+        <div class="staging-badges-row">
+          <span class="badge badge-network">Network: ${networkDisplayLabel}</span>
+          <span class="badge badge-tagtype">${tagTypeLabel} (${requestTypeLabel})</span>
+          <span class="badge badge-consent">Consent: ${state.privacyConsent.toUpperCase()}</span>
+          ${state.prebidEnabled ? `<span class="badge badge-prebid">Prebid Mock</span>` : ''}
+          ${state.geolocationCoordinates ? `<span class="badge badge-geo" title="${state.geolocationCoordinates}">Geo: ${state.geolocationCountry || 'Spoofed'}</span>` : ''}
+        </div>
+      </div>
+      <div class="staging-header-actions">
+        <!-- Spoof Location Selector -->
+        <div class="geo-selector-wrapper">
+          <span style="font-size: 11px; opacity: 0.8; font-weight: 500; font-family: sans-serif; display: flex; align-items: center; gap: 4px;">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            Spoof Location:
+          </span>
+          ${selectHtml}
+        </div>
+        <!-- Refresh Button -->
+        <button class="btn-staging-action" onclick="location.reload()" title="Refresh Test Page">
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Refresh
+        </button>
+        <!-- Back Button -->
+        <a href="/" class="btn-staging-action btn-back" title="Go back to generator">
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          Back to Generator
+        </a>
+      </div>
+    </div>
+
+    <!-- Collapsible Environment config details panel -->
+    <div class="env-details-panel">
+      <div class="env-details-header" onclick="toggleEnvDetails()">
+        <span>Environment Config Details</span>
+        <svg id="env-arrow" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+      <div id="env-details-content" class="env-details-content hidden-element">
+        <div class="env-details-grid">
+          <div class="env-item"><strong>Network:</strong> <span>${networkDisplayLabel}</span></div>
+          <div class="env-item"><strong>Tag Type:</strong> <span>${tagTypeLabel}</span></div>
+          <div class="env-item"><strong>Request Mode:</strong> <span>${requestTypeLabel}</span></div>
+          <div class="env-item"><strong>TCF Consent Mode:</strong> <span>${state.privacyConsent.toUpperCase()}</span></div>
+          ${state.customConsentString ? `<div class="env-item"><strong>TCF Consent String:</strong> <span class="font-mono">${state.customConsentString}</span></div>` : ''}
+          <div class="env-item"><strong>Prebid Mock:</strong> <span>${state.prebidEnabled ? 'Active (AppNexus, Rubicon)' : 'Disabled'}</span></div>
+          <div class="env-item"><strong>Lazy Loading:</strong> <span>${state.lazyLoadEnabled ? `Enabled (Fetch: ${state.lazyLoadFetchMarginPercent}%, Render: ${state.lazyLoadRenderMarginPercent}%)` : 'Disabled'}</span></div>
+          <div class="env-item"><strong>Geo Coordinates:</strong> <span>${state.geolocationCoordinates || 'None (Default)'}</span></div>
+          ${state.geolocationCountry ? `<div class="env-item"><strong>Geo Country:</strong> <span>${state.geolocationCountry}</span></div>` : ''}
+          <div class="env-item"><strong>Collapse Empty Divs:</strong> <span>${state.collapseEmptyDivs ? 'Enabled' : 'Disabled'}</span></div>
+          <div class="env-item"><strong>Disable Initial Load:</strong> <span>${state.disableInitialLoad ? 'Enabled' : 'Disabled'}</span></div>
+          <div class="env-item"><strong>Force SafeFrame:</strong> <span>${state.forceSafeFrame ? 'Enabled' : 'Disabled'}</span></div>
+          <div class="env-item"><strong>Center Ads:</strong> <span>${state.centerAds ? 'Enabled' : 'Disabled'}</span></div>
+          <div class="env-item"><strong>Cookies:</strong> <span>${state.disableCookies ? 'Disabled' : 'Enabled'}</span></div>
+        </div>
+      </div>
+    </div>
     ${vastDisplayBlockHtml}
     ${finalBodyMarkup}
     <hr>
@@ -533,6 +1132,9 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
         <textarea id="textarea-body" class="code-panel-textarea hidden-element" spellcheck="false">${escHtml(finalBodyCode)}</textarea>
       </div>
     </div>
+    
+    <!-- Diagnostics Console -->
+    ${diagnosticsConsoleHtml}
   </div>`
   }
 
@@ -556,6 +1158,58 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
     .asInfo a:hover { text-decoration: underline; }
     .info-margin { display: block; margin-top: 4px; }
     .alert.oop { background: ${isDark ? '#3f2203' : '#fff3e0'}; border: 1px solid ${isDark ? '#7c2d12' : '#ffcc80'}; padding: 8px 10px; color: ${isDark ? '#fdba74' : '#e65100'}; margin-top: 8px; border-radius: 2px; font-size: 11px; }
+    .lazy-status-bar {
+      margin-top: 8px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: ${isDark ? '#27272a' : '#f5f5f5'};
+      border: 1px solid ${isDark ? '#3f3f46' : '#e0e0e0'};
+      color: ${isDark ? '#e4e4e7' : '#3f3f46'};
+    }
+    .lazy-status-dot-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .lazy-status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #71717a;
+      display: inline-block;
+      transition: background-color 0.25s ease;
+    }
+    .lazy-status-dot.fetching {
+      background: #f59e0b; /* Amber */
+    }
+    .lazy-status-dot.received {
+      background: #eab308; /* Yellow */
+    }
+    .lazy-status-dot.rendered {
+      background: #10b981; /* Green */
+    }
+    .lazy-status-dot.viewed {
+      background: #06b6d4; /* Pulsing Cyan */
+      animation: lazy-pulse 1.5s infinite alternate;
+    }
+    .lazy-status-visibility {
+      font-family: monospace;
+      font-size: 11px;
+      opacity: 0.8;
+      background: ${isDark ? '#18181b' : '#e2e8f0'};
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    @keyframes lazy-pulse {
+      0% { box-shadow: 0 0 0 0px rgba(6, 182, 212, 0.4); }
+      100% { box-shadow: 0 0 0 6px rgba(6, 182, 212, 0); }
+    }
     .noad { color: #d32f2f; }
     .code-panel-card {
       border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
@@ -739,43 +1393,83 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       opacity: 1;
       color: #34d399;
     }
-    .testpage-header {
-      background: ${isDark ? '#18181b' : '#ffffff'};
-      border-bottom: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
-      padding: 10px 24px;
+    .staging-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      box-shadow: ${isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)'};
+      border-bottom: 1px solid ${isDark ? '#27272a' : '#f1f5f9'};
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .staging-header-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .staging-page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0;
+      color: ${isDark ? '#ffffff' : '#0f172a'};
       font-family: system-ui, -apple-system, sans-serif;
     }
-    .testpage-header-left {
+    .staging-badges-row {
       display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
       align-items: center;
-      gap: 16px;
     }
-    .testpage-header-right {
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .badge-network {
+      background: ${isDark ? '#27272a' : '#f1f5f9'};
+      color: ${isDark ? '#a1a1aa' : '#475569'};
+    }
+    .badge-tagtype {
+      background: ${isDark ? '#1e293b' : '#e0f2fe'};
+      color: ${isDark ? '#38bdf8' : '#0369a1'};
+    }
+    .badge-consent {
+      background: ${isDark ? '#223026' : '#dcfce7'};
+      color: ${isDark ? '#4ade80' : '#15803d'};
+    }
+    .badge-prebid {
+      background: ${isDark ? '#3b224c' : '#f3e8ff'};
+      color: ${isDark ? '#c084fc' : '#6b21a8'};
+    }
+    .badge-geo {
+      background: ${isDark ? '#4c2f2f' : '#fee2e2'};
+      color: ${isDark ? '#f87171' : '#b91c1c'};
+    }
+    .staging-header-actions {
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
-    .testpage-logo {
-      font-weight: 700;
-      font-size: 14px;
-      color: #15803d;
+    .geo-selector-wrapper {
       display: flex;
       align-items: center;
       gap: 6px;
-      text-decoration: none;
+      color: ${isDark ? '#a1a1aa' : '#475569'};
     }
-    .btn-header-action {
+    .btn-staging-action {
       background: ${isDark ? '#27272a' : '#f1f5f9'};
       border: 1px solid ${isDark ? '#3f3f46' : '#e2e8f0'};
       border-radius: 6px;
       color: ${isDark ? '#f4f4f5' : '#334155'};
-      padding: 6px 12px;
+      padding: 6px 14px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -783,9 +1477,64 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       text-decoration: none;
       transition: background 0.2s, color 0.2s;
     }
-    .btn-header-action:hover {
+    .btn-staging-action:hover {
       background: ${isDark ? '#3f3f46' : '#e2e8f0'};
       color: ${isDark ? '#ffffff' : '#0f172a'};
+    }
+    .btn-back {
+      color: #15803d;
+      background: ${isDark ? '#1b2c1f' : '#f0fdf4'};
+      border-color: ${isDark ? '#224e2c' : '#bbf7d0'};
+    }
+    .btn-back:hover {
+      background: ${isDark ? '#224e2c' : '#dcfce7'};
+      color: ${isDark ? '#22c55e' : '#166534'};
+    }
+
+    /* Environment Config Details Styles */
+    .env-details-panel {
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .env-details-header {
+      background: ${isDark ? '#202023' : '#f8fafc'};
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: ${isDark ? '#e4e4e7' : '#334155'};
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .env-details-header:hover {
+      background: ${isDark ? '#27272a' : '#f1f5f9'};
+    }
+    .env-details-content {
+      padding: 16px;
+      border-top: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      background: ${isDark ? '#1b1b1f' : '#ffffff'};
+    }
+    .env-details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      font-size: 12px;
+    }
+    .env-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .env-item strong {
+      color: ${isDark ? '#a1a1aa' : '#64748b'};
+    }
+    .env-item span {
+      color: ${isDark ? '#f4f4f5' : '#0f172a'};
     }
     .select-location {
       background: ${isDark ? '#27272a' : '#ffffff'};
@@ -963,6 +1712,185 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       opacity: 0.6;
       font-size: 10.5px;
       margin-left: 6px;
+    }
+    
+    /* Diagnostics Console Styles */
+    .diag-console-card {
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 24px;
+      background: ${isDark ? '#09090b' : '#ffffff'};
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .diag-console-header {
+      background: ${isDark ? '#1e293b' : '#f8fafc'};
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+    }
+    .diag-console-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: ${isDark ? '#f4f4f5' : '#1e293b'};
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .diag-console-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .diag-badge {
+      background: #15803d;
+      color: #fff;
+      border-radius: 9999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .diag-console-toggle-icon {
+      font-size: 10px;
+      color: ${isDark ? '#a1a1aa' : '#64748b'};
+      transition: transform 0.2s;
+    }
+    .diag-console-body {
+      display: flex;
+      flex-direction: column;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .diag-tabs {
+      display: flex;
+      background: ${isDark ? '#18181b' : '#f1f5f9'};
+      border-bottom: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+    }
+    .diag-tab-btn {
+      background: none;
+      border: none;
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: ${isDark ? '#a1a1aa' : '#64748b'};
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      outline: none;
+      font-family: inherit;
+    }
+    .diag-tab-btn:hover {
+      color: ${isDark ? '#f4f4f5' : '#0f172a'};
+    }
+    .diag-tab-btn.active {
+      color: #15803d;
+      border-bottom-color: #15803d;
+      font-weight: 600;
+    }
+    .diag-tab-panel {
+      display: none;
+      padding: 16px;
+    }
+    .diag-tab-panel.active {
+      display: block;
+    }
+    .diag-log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .diag-log-item {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: ${isDark ? '#18181b' : '#f8fafc'};
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      animation: diagFadeIn 0.2s ease;
+    }
+    @keyframes diagFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .diag-log-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-right: 8px;
+      display: inline-block;
+    }
+    .diag-badge-gpt_event { background: #2563eb; color: #fff; }
+    .diag-badge-prebid_event { background: #7c3aed; color: #fff; }
+    .diag-badge-safeframe_event { background: #d97706; color: #fff; }
+    .diag-badge-ad_request { background: #10b981; color: #fff; }
+    .diag-badge-tracking_pixel { background: #ec4899; color: #fff; }
+    .diag-badge-network_request { background: #6b7280; color: #fff; }
+    .diag-badge-vast_event { background: #f43f5e; color: #fff; }
+    .diag-badge-system_error { background: #ef4444; color: #fff; }
+
+    /* VAST embedded player styles */
+    .vast-player-card {
+      border: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+      border-radius: 8px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      background: ${isDark ? '#18181b' : '#ffffff'};
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .vast-player-header {
+      background: ${isDark ? '#202023' : '#f8fafc'};
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid ${isDark ? '#27272a' : '#e2e8f0'};
+    }
+    .vast-player-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: ${isDark ? '#ffffff' : '#0f172a'};
+    }
+    .vast-player-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      aspect-ratio: 16 / 9;
+      margin: 16px auto;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .diag-log-time {
+      font-size: 10px;
+      color: ${isDark ? '#71717a' : '#94a3b8'};
+      margin-left: 12px;
+      white-space: nowrap;
+    }
+    .diag-log-empty {
+      text-align: center;
+      padding: 32px;
+      color: ${isDark ? '#71717a' : '#94a3b8'};
+      font-size: 12.5px;
+    }
+    .diag-info-box {
+      background: ${isDark ? 'rgba(21, 128, 61, 0.1)' : '#f0fdf4'};
+      border: 1px solid ${isDark ? 'rgba(21, 128, 61, 0.25)' : '#bbf7d0'};
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      color: ${isDark ? '#86efac' : '#14532d'};
+      line-height: 1.5;
     }
   </style>
 
@@ -1405,10 +2333,91 @@ ${sizeMappingScriptCode}${adSlotDefinitionsCode}${pageTargetingSettingsCode}    
       }
     }
   }
+
+  var totalDiagEvents = 0;
+  window.addDiagLogToConsole = function(type, eventName, slotId, details) {
+    totalDiagEvents++;
+    $('#diag-badge-count').text(totalDiagEvents + ' Events');
+    
+    var timeStr = new Date().toLocaleTimeString();
+    var typeLabel = type;
+    if (type === 'GPT_EVENT') typeLabel = 'GPT';
+    else if (type === 'PREBID_EVENT') typeLabel = 'Prebid';
+    else if (type === 'SAFEFRAME_EVENT') typeLabel = 'SafeFrame';
+    else if (type === 'AD_REQUEST') typeLabel = 'Ad Request';
+    else if (type === 'TRACKING_PIXEL') typeLabel = 'Pixel';
+    else if (type === 'NETWORK_REQUEST') typeLabel = 'Network';
+    else if (type === 'VAST_EVENT') typeLabel = 'VAST';
+    
+    var badgeClass = 'diag-badge-' + type.toLowerCase();
+    
+    var detailsStr = '';
+    if (details && Object.keys(details).length > 0) {
+      detailsStr = ' <span style="opacity:0.75; font-size:11px;">' + JSON.stringify(details) + '</span>';
+    }
+    
+    var logItemHtml = '<div class="diag-log-item">' +
+      '<div>' +
+        '<span class="diag-log-badge ' + badgeClass + '">' + typeLabel + '</span>' +
+        '<b>' + eventName + '</b>' +
+        (slotId && slotId !== 'page-level' ? ' <span style="color:#15803d">[' + slotId + ']</span>' : '') +
+        detailsStr +
+      '</div>' +
+      '<div class="diag-log-time">' + timeStr + '</div>' +
+    '</div>';
+    
+    var targetListId = '#gpt-log-list';
+    if (type === 'GPT_EVENT') targetListId = '#gpt-log-list';
+    else if (type === 'PREBID_EVENT') targetListId = '#prebid-log-list';
+    else if (type === 'SAFEFRAME_EVENT') targetListId = '#safeframe-log-list';
+    else if (type === 'AD_REQUEST' || type === 'TRACKING_PIXEL' || type === 'NETWORK_REQUEST') targetListId = '#network-log-list';
+    else if (type === 'VAST_EVENT') targetListId = '#vast-log-list';
+    
+    var listEl = $(targetListId);
+    if (listEl.find('.diag-log-empty').length > 0) {
+      listEl.empty();
+    }
+    listEl.prepend(logItemHtml);
+  };
+  
+  window.toggleEnvDetails = function() {
+    var content = document.getElementById('env-details-content');
+    var arrow = document.getElementById('env-arrow');
+    if (content.classList.contains('hidden-element')) {
+      content.classList.remove('hidden-element');
+      arrow.style.transform = 'rotate(180deg)';
+    } else {
+      content.classList.add('hidden-element');
+      arrow.style.transform = 'rotate(0deg)';
+    }
+  };
+
+  window.toggleDiagConsole = function() {
+    var body = document.getElementById('diag-console-body-content');
+    var icon = document.getElementById('diag-toggle-icon');
+    if (body.style.display === 'none') {
+      body.style.display = 'flex';
+      icon.innerText = '▼';
+    } else {
+      body.style.display = 'none';
+      icon.innerText = '▲';
+    }
+  };
+  
+  window.switchDiagTab = function(event, tabId) {
+    $('.diag-tab-btn').removeClass('active');
+    $(event.target).addClass('active');
+    $('.diag-tab-panel').removeClass('active');
+    $('#' + tabId).addClass('active');
+  };
   <\/scr` + `ipt>
 
   ${consoleDisableScriptCode}
+  ${imaSdkScriptCode}
+  ${networkRequestInterceptorScriptCode}
   ${locationSpoofPrepaintScriptCode}
+  ${embeddedPlayerScriptCode}
+  ${troubleshootingPrepaintScriptCode}
   ${stagingHeadScriptCode}
   ${publisherConsoleScriptCode}
   ${liveReloadScriptCode}

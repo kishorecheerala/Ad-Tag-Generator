@@ -7,7 +7,7 @@ function emptySlot(path = '', sizes = '', targeting: KeyValue[] = []): AdSlot {
   return { path, sizes, oop: false, comp: false, targeting }
 }
 
-function defaultFields(): TagSettingsState {
+export function defaultFields(): TagSettingsState {
   return {
     tagType: 'async',
     isSingleRequestArchitectureEnabled: true,
@@ -58,6 +58,17 @@ function defaultFields(): TagSettingsState {
     customHeaderCode: null,
     customBodyCode: null,
     correlator: 0,
+    privacyConsent: 'none',
+    customConsentString: '',
+    prebidEnabled: false,
+    prebidBids: [
+      { bidder: 'appnexus', cpm: 3.5, size: '300x250' },
+      { bidder: 'rubicon', cpm: 2.8, size: '728x90' },
+    ],
+    lazyLoadEnabled: false,
+    lazyLoadFetchMarginPercent: 200,
+    lazyLoadRenderMarginPercent: 100,
+    lazyLoadMobileScalingFactor: 2.0,
   }
 }
 
@@ -66,6 +77,8 @@ interface TagSettingsStore extends Omit<TagSettingsState, 'isMCM'> {
   sizeMappingPanelOpen: boolean
   adsensePanelOpen: boolean
   videoPanelOpen: boolean
+  diagnosticsPanelOpen: boolean
+  lazyLoadPanelOpen: boolean
 
   setField: <K extends keyof Omit<TagSettingsState, 'isMCM'>>(key: K, value: TagSettingsState[K]) => void
   setVideoField: <K extends keyof VideoConfig>(key: K, value: VideoConfig[K]) => void
@@ -75,6 +88,8 @@ interface TagSettingsStore extends Omit<TagSettingsState, 'isMCM'> {
   setSizeMappingPanelOpen: (open: boolean) => void
   setAdsensePanelOpen: (open: boolean) => void
   setVideoPanelOpen: (open: boolean) => void
+  setDiagnosticsPanelOpen: (open: boolean) => void
+  setLazyLoadPanelOpen: (open: boolean) => void
 
   addSlot: (slot?: Partial<AdSlot>) => void
   removeSlot: (index: number) => void
@@ -92,6 +107,7 @@ interface TagSettingsStore extends Omit<TagSettingsState, 'isMCM'> {
   generateTags: () => boolean
 
   regenerateCorrelator: () => void
+  hydrateTagSettings: (patch: Partial<TagSettingsState>) => void
 }
 
 export const useTagSettingsStore = create<TagSettingsStore>((set, get) => ({
@@ -101,6 +117,8 @@ export const useTagSettingsStore = create<TagSettingsStore>((set, get) => ({
   sizeMappingPanelOpen: false,
   adsensePanelOpen: false,
   videoPanelOpen: false,
+  diagnosticsPanelOpen: false,
+  lazyLoadPanelOpen: false,
 
   setField: (key, value) => set({ [key]: value } as Partial<TagSettingsStore>),
   setVideoField: (key, value) => set((s) => ({ video: { ...s.video, [key]: value } })),
@@ -110,6 +128,8 @@ export const useTagSettingsStore = create<TagSettingsStore>((set, get) => ({
   setSizeMappingPanelOpen: (open) => set({ sizeMappingPanelOpen: open, sizeMappingEnabled: open }),
   setAdsensePanelOpen: (open) => set({ adsensePanelOpen: open, adsenseEnabled: open }),
   setVideoPanelOpen: (open) => set({ videoPanelOpen: open, videoEnabled: open }),
+  setDiagnosticsPanelOpen: (open) => set({ diagnosticsPanelOpen: open }),
+  setLazyLoadPanelOpen: (open) => set({ lazyLoadPanelOpen: open, lazyLoadEnabled: open }),
 
   addSlot: (slot) => set((s) => ({ slots: [...s.slots, emptySlot(slot?.path, slot?.sizes, slot?.targeting)] })),
   removeSlot: (index) => set((s) => ({ slots: s.slots.filter((_, i) => i !== index) })),
@@ -135,6 +155,8 @@ export const useTagSettingsStore = create<TagSettingsStore>((set, get) => ({
       sizeMappingPanelOpen: false,
       adsensePanelOpen: false,
       videoPanelOpen: false,
+      diagnosticsPanelOpen: false,
+      lazyLoadPanelOpen: false,
     }),
 
   generateTags: () => {
@@ -155,6 +177,44 @@ export const useTagSettingsStore = create<TagSettingsStore>((set, get) => ({
   },
 
   regenerateCorrelator: () => set((s) => ({ correlator: maybeGenerateNewCorrelator(s) })),
+
+  hydrateTagSettings: (patch) =>
+    set((s) => {
+      const video = patch.video ? { ...s.video, ...patch.video } : s.video
+      const adsense = patch.adsense ? { ...s.adsense, ...patch.adsense } : s.adsense
+
+      const hasAdvancedOptions =
+        patch.collapseEmptyDivs !== undefined ||
+        patch.disableInitialLoad !== undefined ||
+        patch.forceSafeFrame !== undefined ||
+        patch.centerAds !== undefined ||
+        patch.disableCookies !== undefined ||
+        patch.disableConsole !== undefined ||
+        patch.tagForChildDirectedTreatment !== undefined ||
+        patch.contentExclusion !== undefined ||
+        patch.publisherProvidedId !== undefined
+
+      const advancedPanelOpen = hasAdvancedOptions ? true : s.advancedPanelOpen
+
+      const hasDiagnosticsOptions =
+        patch.privacyConsent !== undefined ||
+        patch.prebidEnabled !== undefined
+
+      const diagnosticsPanelOpen = hasDiagnosticsOptions ? true : s.diagnosticsPanelOpen
+
+      return {
+        ...s,
+        ...patch,
+        video,
+        adsense,
+        advancedPanelOpen,
+        sizeMappingPanelOpen: patch.sizeMappingEnabled !== undefined ? patch.sizeMappingEnabled : s.sizeMappingPanelOpen,
+        adsensePanelOpen: patch.adsenseEnabled !== undefined ? patch.adsenseEnabled : s.adsensePanelOpen,
+        videoPanelOpen: patch.videoEnabled !== undefined ? patch.videoEnabled : s.videoPanelOpen,
+        lazyLoadPanelOpen: patch.lazyLoadEnabled !== undefined ? patch.lazyLoadEnabled : s.lazyLoadPanelOpen,
+        diagnosticsPanelOpen,
+      }
+    }),
 }))
 
 function toSnapshot(s: TagSettingsStore): TagSettingsState {
@@ -192,6 +252,14 @@ function toSnapshot(s: TagSettingsStore): TagSettingsState {
     customHeaderCode: s.customHeaderCode,
     customBodyCode: s.customBodyCode,
     correlator: s.correlator,
+    privacyConsent: s.privacyConsent,
+    customConsentString: s.customConsentString,
+    prebidEnabled: s.prebidEnabled,
+    prebidBids: s.prebidBids,
+    lazyLoadEnabled: s.lazyLoadEnabled,
+    lazyLoadFetchMarginPercent: s.lazyLoadFetchMarginPercent,
+    lazyLoadRenderMarginPercent: s.lazyLoadRenderMarginPercent,
+    lazyLoadMobileScalingFactor: s.lazyLoadMobileScalingFactor,
   }
 }
 /** Full TagSettingsState snapshot (with derived isMCM + trimmed network IDs) for the pure code-generation functions. */

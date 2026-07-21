@@ -213,6 +213,13 @@ export function buildStandardSlotParts(state: TagSettingsState, networkBaseSlotP
   if (state.centerAds) pageTargetingSettingsCode += `    googletag.pubads().setCentering(true);\n`
   if (state.disableCookies) pageTargetingSettingsCode += `    googletag.pubads().setCookieOptions(1);\n`
   if (state.disableConsole) pageTargetingSettingsCode += `    googletag.disablePublisherConsole();\n`
+  if (state.lazyLoadEnabled) {
+    pageTargetingSettingsCode += `    googletag.pubads().enableLazyLoad({\n`
+    pageTargetingSettingsCode += `      fetchMarginPercent: ${state.lazyLoadFetchMarginPercent},\n`
+    pageTargetingSettingsCode += `      renderMarginPercent: ${state.lazyLoadRenderMarginPercent},\n`
+    pageTargetingSettingsCode += `      mobileScalingFactor: ${state.lazyLoadMobileScalingFactor}\n`
+    pageTargetingSettingsCode += `    });\n`
+  }
   if (state.tagForChildDirectedTreatment) {
     pageTargetingSettingsCode += `    googletag.pubads().setPrivacySettings({ childDirectedTreatment: true });\n`
   }

@@ -26,9 +26,9 @@ export function ResultsPanel() {
 
   return (
     <ResizablePanels
-      defaultLeftPercent={58}
+      defaultLeftPercent={50}
       left={
-        <div className="flex flex-col gap-4 pr-0 lg:pr-3">
+        <div className="flex flex-col gap-4">
           {showHeaderBody && (
             <>
               <CodePanel

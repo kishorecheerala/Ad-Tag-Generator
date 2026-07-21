@@ -83,7 +83,8 @@ export function CodePanel({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
-            className={cn('w-full resize-y bg-transparent p-4 font-mono text-xs leading-relaxed outline-none', maxHeightClass)}
+            rows={Math.min(Math.max(draft.split('\n').length, 12), 24)}
+            className={cn('w-full resize-y bg-transparent p-4 font-mono text-xs leading-relaxed outline-none min-h-[200px]', maxHeightClass)}
           />
         ) : (
           <pre

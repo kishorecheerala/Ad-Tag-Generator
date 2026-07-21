@@ -93,11 +93,76 @@ export interface DecodedAdTag {
   isVast: boolean
   hostName: string
   pathName: string
+  isHtmlTag?: boolean
+  htmlSlots?: { path: string; sizes: string; divId: string; targeting?: Record<string, string> }[]
 }
 
 export function decodeAdTag(rawAdTagInput: string): DecodedAdTag | null {
   const trimmed = rawAdTagInput.trim()
   if (!trimmed) return null
+
+  const isHtml = trimmed.includes('<script') || trimmed.includes('googletag') || trimmed.includes('defineSlot')
+  if (isHtml) {
+    const slots: { path: string; sizes: string; divId: string; targeting?: Record<string, string> }[] = []
+    
+    let match
+    const defineSlotRegex = /defineSlot\(\s*['"]([^'"]+)['"]\s*,\s*([^,)]+|\[[^\]]+\]|['"][^'"]+['"])\s*,\s*['"]([^'"]+)['"]\s*\)/g
+    while ((match = defineSlotRegex.exec(trimmed)) !== null) {
+      const path = match[1]
+      const rawSizes = match[2].trim()
+      const divId = match[3]
+      
+      let sizes = '300x250'
+      if (rawSizes.startsWith('[') && rawSizes.endsWith(']')) {
+        const nestedMatches = rawSizes.match(/\[\s*\d+\s*,\s*\d+\s*\]/g)
+        if (nestedMatches) {
+          sizes = nestedMatches.map(m => {
+            const parts = m.replace(/[\[\]\s]/g, '').split(',')
+            return `${parts[0]}x${parts[1]}`
+          }).join('|')
+        } else {
+          const parts = rawSizes.replace(/[\[\]\s]/g, '').split(',')
+          if (parts.length === 2) {
+            sizes = `${parts[0]}x${parts[1]}`
+          }
+        }
+      } else {
+        sizes = rawSizes.replace(/['"\s]/g, '')
+      }
+      slots.push({ path, sizes, divId, targeting: {} })
+    }
+
+    const oopSlotRegex = /defineOutOfPageSlot\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g
+    while ((match = oopSlotRegex.exec(trimmed)) !== null) {
+      slots.push({ path: match[1], sizes: 'oop', divId: match[2], targeting: {} })
+    }
+
+    const customTargetingParameters: Record<string, string> = {}
+    const pageTargetingRegex = /googletag\.pubads\(\)\.setTargeting\(\s*['"]([^'"]+)['"]\s*,\s*([^)]+)\)/g
+    while ((match = pageTargetingRegex.exec(trimmed)) !== null) {
+      const key = match[1]
+      let val = match[2].trim()
+      val = val.replace(/[\[\]'"\s]/g, '')
+      customTargetingParameters[key] = val
+    }
+
+    if (slots.length > 0) {
+      return {
+        globalParameters: {
+          iu: slots[0].path,
+          sz: slots[0].sizes,
+        },
+        customTargetingParameters,
+        isGam: true,
+        isCm360: false,
+        isVast: false,
+        hostName: 'securepubads.g.doubleclick.net',
+        pathName: '/gampad/ads',
+        isHtmlTag: true,
+        htmlSlots: slots,
+      }
+    }
+  }
 
   const globalParameters: Record<string, string> = {}
   let parsedHostName = ''
@@ -142,7 +207,9 @@ export function decodeAdTag(rawAdTagInput: string): DecodedAdTag | null {
     })
   }
 
-  const isGam = parsedHostName.includes('securepubads.g.doubleclick.net') && parsedPathName.includes('/gampad/ads')
+  const isGam =
+    (parsedHostName.includes('securepubads.g.doubleclick.net') || parsedHostName.includes('pubads.g.doubleclick.net')) &&
+    parsedPathName.includes('/gampad/ads')
   const isCm360 =
     parsedHostName.includes('ad.doubleclick.net') ||
     parsedHostName.includes('ad-emea.doubleclick.net') ||

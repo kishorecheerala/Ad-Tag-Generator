@@ -36,18 +36,25 @@ export function validationInfo(decoded: DecodedAdTag) {
   }
 }
 
-const TONE_CLASSES = {
+const ALERT_CLASSES = {
   purple: 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400',
   blue: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400',
   emerald: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400',
   amber: 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400',
 }
 
+const BADGE_CLASSES = {
+  purple: 'bg-purple-500/20 border-purple-400/45 text-white',
+  blue: 'bg-blue-500/20 border-blue-400/45 text-white',
+  emerald: 'bg-emerald-500/20 border-emerald-400/45 text-white',
+  amber: 'bg-amber-500/20 border-amber-400/45 text-white',
+}
+
 export function ValidationAlert({ decoded }: { decoded: DecodedAdTag }) {
   const info = validationInfo(decoded)
   const Icon = decoded.isVast ? Clapperboard : decoded.isGam || decoded.isCm360 ? CheckCircle2 : AlertTriangle
   return (
-    <div className={cn('flex items-start gap-3 rounded-lg border p-3', TONE_CLASSES[info.tone])}>
+    <div className={cn('flex items-start gap-3 rounded-lg border p-3', ALERT_CLASSES[info.tone])}>
       <Icon className="mt-0.5 size-5 shrink-0" />
       <div className="text-sm">
         <div className="font-semibold">{info.title}</div>
@@ -60,5 +67,5 @@ export function ValidationAlert({ decoded }: { decoded: DecodedAdTag }) {
 export function ValidationBadge({ decoded }: { decoded: DecodedAdTag | null }) {
   if (!decoded) return <Badge variant="secondary">No Tag Loaded</Badge>
   const info = validationInfo(decoded)
-  return <Badge className={TONE_CLASSES[info.tone]} variant="outline">{info.label}</Badge>
+  return <Badge className={BADGE_CLASSES[info.tone]} variant="outline">{info.label}</Badge>
 }

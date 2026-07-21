@@ -62,7 +62,7 @@ export function ResizablePanels({
           document.body.style.userSelect = 'none'
           e.preventDefault()
         }}
-        className="mx-1 hidden w-0.5 shrink-0 cursor-col-resize self-stretch rounded bg-transparent transition-colors hover:bg-red-500 active:bg-red-600 lg:block"
+        className="mx-3 hidden w-0.5 shrink-0 cursor-col-resize self-stretch rounded bg-foreground/10 transition-colors hover:bg-red-500 active:bg-red-600 lg:block"
       />
       <div className="min-w-0 flex-1">{right}</div>
     </div>

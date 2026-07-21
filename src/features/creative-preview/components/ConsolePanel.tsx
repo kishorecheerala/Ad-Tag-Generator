@@ -25,7 +25,17 @@ export function ConsolePanel() {
   const entries = useCreativePreviewStore((s) => s.consoleEntries)
   const clearConsole = useCreativePreviewStore((s) => s.clearConsole)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [consoleHeight, setConsoleHeight] = useState(200)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [consoleHeight, setConsoleHeight] = useState<number | null>(null)
+
+  const handleResize = (dy: number) => {
+    setConsoleHeight((hgt) => {
+      if (hgt === null && cardRef.current) {
+        return Math.max(100, cardRef.current.offsetHeight + dy)
+      }
+      return Math.max(100, (hgt || 0) + dy)
+    })
+  }
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -42,8 +52,12 @@ export function ConsolePanel() {
   }
 
   return (
-    <Card className="group relative">
-      <CardHeader>
+    <Card
+      ref={cardRef}
+      className={cn("group relative flex flex-col shrink-0", consoleHeight === null && "h-auto")}
+      style={consoleHeight !== null ? { height: consoleHeight } : {}}
+    >
+      <CardHeader className="py-2.5 shrink-0">
         <CardTitle>Console</CardTitle>
         <div className="flex items-center gap-1">
           <Button size="icon-sm" variant="ghost" className="hover:bg-white/20" title="Copy console output" onClick={copyConsole}>
@@ -54,7 +68,7 @@ export function ConsolePanel() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent ref={scrollRef} className="overflow-y-auto p-0 pb-3 font-mono text-[11.5px]" style={{ height: consoleHeight }}>
+      <CardContent ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-0 pb-3 font-mono text-[11.5px]">
         {entries.length === 0 ? (
           <EmptyState>Console output will appear here.</EmptyState>
         ) : (
@@ -69,7 +83,7 @@ export function ConsolePanel() {
           ))
         )}
       </CardContent>
-      <ResizeHandle onResize={(dy) => setConsoleHeight((hgt) => Math.max(80, hgt + dy))} />
+      <ResizeHandle onResize={handleResize} />
     </Card>
   )
 }
