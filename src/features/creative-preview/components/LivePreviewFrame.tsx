@@ -411,8 +411,12 @@ ${finalJs}
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
-      if (e.source === iframeRef.current?.contentWindow && e.data?.source === 'creative-console') {
-        appendConsoleEntry({ level: e.data.level, text: e.data.args.join(' ') })
+      if (e.source === iframeRef.current?.contentWindow) {
+        if (e.data?.source === 'creative-console') {
+          appendConsoleEntry({ level: e.data.level, text: e.data.args.join(' ') })
+        } else if (e.data?.source === 'creative-rendered-code' && e.data?.html) {
+          useCreativePreviewStore.getState().setHtml(e.data.html)
+        }
       }
     }
     window.addEventListener('message', onMessage)
