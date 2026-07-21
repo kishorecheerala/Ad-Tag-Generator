@@ -10,11 +10,11 @@ import { CONSOLE_BRIDGE } from '../consoleBridge'
 import { VideoPlayerPreview } from './VideoPlayerPreview'
 
 const SIZE_PRESETS: { value: CreativeSizePreset; label: string }[] = [
+  { value: '160x600', label: '160x600 Wide Skyscraper' },
   { value: '300x250', label: '300x250 Medium Banner' },
   { value: '728x90', label: '728x90 Leaderboard' },
   { value: '300x600', label: '300x600 Half Page' },
   { value: '320x50', label: '320x50 Mobile Leaderboard' },
-  { value: '160x600', label: '160x600 Wide Skyscraper' },
   { value: '970x250', label: '970x250 Billboard' },
   { value: '640x360', label: '640x360 (16:9 Video Canvas)' },
   { value: 'fluid', label: 'Fluid (Native Content)' },
@@ -50,25 +50,24 @@ export function LivePreviewFrame() {
     return result
   }
 
-  // Generate srcDoc for GAM On-Site Preview, Native JSON, or HTML5
-  const srcDoc = useMemo(() => {
+  // Generate HTML for iframe
+  const htmlContent = useMemo(() => {
     if (formatMode === 'video') return ''
 
     // 1. GAM On-Site Live Ad Renderer Mode
     if (formatMode === 'on_site_gam') {
-      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/82109981/homepage_top'
-      // Ensure leading slash on ad unit path (GPT requirement)
+      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/23171577/expedia.fr_fr/hotels results'
       const adUnitId = rawAdUnit.trim().startsWith('/') ? rawAdUnit.trim() : '/' + rawAdUnit.trim()
 
       const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '7322921650'
       const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || '138561712827'
-      const sizeTargeting = liveSiteConfig.sizeTargeting || (size === 'responsive' ? '300x250' : size)
+      const sizeTargeting = liveSiteConfig.sizeTargeting || (size === 'responsive' ? '160x600' : size)
 
       const parsedSize = sizeTargeting === 'fluid'
         ? "'fluid'"
         : sizeTargeting.includes('x')
           ? `[${sizeTargeting.split('x').join(', ')}]`
-          : `[300, 250]`
+          : `[160, 600]`
 
       const parentSearchString = window.location.search || ''
 
@@ -88,7 +87,6 @@ export function LivePreviewFrame() {
 </style>
 <script>${CONSOLE_BRIDGE}<\/script>
 
-<!-- Inject parent query string so GPT sees google_preview & iu parameters -->
 <script>
   try {
     if (window.history && window.history.replaceState) {
@@ -100,7 +98,6 @@ export function LivePreviewFrame() {
   } catch (e) {}
 <\/script>
 
-<!-- Pre-paint Interceptor to log tracking pixels -->
 <script>
 (function() {
   var originalCreateElement = document.createElement;
@@ -127,17 +124,17 @@ export function LivePreviewFrame() {
 <script>
   window.googletag = window.googletag || {cmd: []};
   googletag.cmd.push(function() {
-    var slot = googletag.defineSlot('${adUnitId}', ${parsedSize}, 'gam-onsite-preview-slot');
+    var slot = googletag.defineSlot('${adUnitId.replace(/'/g, "\\'")}', ${parsedSize}, 'gam-onsite-preview-slot');
     if (slot) {
       slot.addService(googletag.pubads());
     }
 
-    // Set page-level GAM preview targeting
     var urlParams = new URLSearchParams(window.location.search);
     var previewToken = urlParams.get('google_preview') || urlParams.get('googlesitepreview');
     if (previewToken) {
       googletag.pubads().setTargeting('google_preview', previewToken);
       googletag.pubads().setTargeting('googlesitepreview', previewToken);
+      googletag.pubads().setTargeting('gdfp_req', '1');
     }
     if ('${lineItemId}') googletag.pubads().setTargeting('lineItemId', '${lineItemId}');
     if ('${creativeId}') googletag.pubads().setTargeting('creativeId', '${creativeId}');
@@ -150,10 +147,10 @@ export function LivePreviewFrame() {
         if (event.isEmpty) {
           infoDiv.innerHTML = '<div style="color:#ef4444;font-weight:bold;margin-bottom:4px;">No Ad Returned from GAM Auction (Empty: true)</div>' +
             '<div style="font-size:10px;color:#a1a1aa;line-height:1.4;">' +
-            '&bull; <b>Ad Unit Path:</b> ${adUnitId} (Ensure leading slash / and sub-adunit path match GAM setup)<br>' +
+            '&bull; <b>Ad Unit Path:</b> ${adUnitId}<br>' +
             '&bull; <b>Line Item ID:</b> ${lineItemId} | <b>Creative ID:</b> ${creativeId}<br>' +
             '&bull; <b>Size Targeting:</b> ${sizeTargeting}<br>' +
-            '&bull; <i>Tip: If using custom GAM ad unit, ensure slot path matches GAM (e.g. /${adUnitId.replace(/^\//, '')}/slot_name)</i>' +
+            '&bull; <i>Note: Ensure ad unit path &amp; size match line item targeting in GAM.</i>' +
             '</div>';
         } else {
           infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span class="info-tag">' + (event.lineItemId || '${lineItemId}') + '</span></div>' +
@@ -213,7 +210,6 @@ export function LivePreviewFrame() {
         </body></html>`
       }
 
-      // Extract resolved fields
       const heading = resolveMacros(parsedJson?.copy?.heading?.standard || 'Native Ad Heading')
       const description = resolveMacros(parsedJson?.copy?.description?.standard || '')
       const ctaText = resolveMacros(parsedJson?.copy?.callToAction?.standard || 'Learn More')
@@ -304,7 +300,6 @@ export function LivePreviewFrame() {
   <script>
     console.info('GAM Native Custom Format Creative Loaded (Schema v3).');
     
-    // Simulate beacon pings
     var beacons = [
       { name: 'Render Beacon', url: '${renderBeacon}' },
       { name: '3rd Party Tracker 1', url: '${imp1Beacon}' },
@@ -351,10 +346,26 @@ ${finalJs}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formatMode, jsonContent, html, css, js, macroSubstitutions, liveSiteConfig, runToken])
 
+  // Write content via contentDocument for same-origin execution
+  useEffect(() => {
+    if (!iframeRef.current) return
+    const iframe = iframeRef.current
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (doc) {
+        doc.open()
+        doc.write(htmlContent)
+        doc.close()
+      }
+    } catch (e) {
+      console.error('Failed to write iframe content:', e)
+    }
+  }, [htmlContent])
+
   useEffect(() => {
     clearConsole()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [srcDoc, formatMode])
+  }, [htmlContent, formatMode])
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
@@ -391,7 +402,7 @@ ${finalJs}
               onClick={() => {
                 const lineItemId = liveSiteConfig.lineItemId || '7322921650'
                 const creativeId = liveSiteConfig.creativeId || '138561712827'
-                const adUnitId = liveSiteConfig.adUnitId || '23171577'
+                const adUnitId = liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels results'
                 window.open(
                   `/testpage?google_preview=1&iu=${encodeURIComponent(
                     adUnitId
@@ -435,7 +446,6 @@ ${finalJs}
           >
             <iframe
               ref={iframeRef}
-              srcDoc={srcDoc}
               title="Creative live preview"
               className="h-full w-full border-0 bg-transparent"
             />
