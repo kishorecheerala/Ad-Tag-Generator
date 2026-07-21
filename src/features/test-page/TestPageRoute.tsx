@@ -31,6 +31,7 @@ export function TestPageRoute() {
       if (iu === '/23171577' || iu === '23171577') {
         iu = '/23171577/travel_portal/hotels/results'
       }
+      iu = iu.replace('travel_portal', 'expedia.fr_fr')
       const sz = searchParams.get('sz') || searchParams.get('size') || '160x600'
       const parsedSize = sz === 'fluid' ? "'fluid'" : sz.includes('x') ? `[${sz.split('x').join(', ')}]` : `[160, 600]`
       

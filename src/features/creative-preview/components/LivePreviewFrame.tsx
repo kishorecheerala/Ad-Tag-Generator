@@ -64,6 +64,7 @@ export function LivePreviewFrame() {
       if (adUnitId === '/23171577' || adUnitId === '23171577') {
         adUnitId = '/23171577/travel_portal/hotels/results'
       }
+      adUnitId = adUnitId.replace('travel_portal', 'expedia.fr_fr')
 
       const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '7322921650'
       const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || '138561712827'
@@ -457,7 +458,7 @@ ${finalJs}
                 const adUnitId = liveSiteConfig.adUnitId || '/23171577/travel_portal/hotels/results'
                 window.open(
                   `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
-                    adUnitId
+                    adUnitId.replace('travel_portal', 'expedia.fr_fr')
                   )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || '160x600'}`,
                   '_blank'
                 )
@@ -501,7 +502,7 @@ ${finalJs}
               src={
                 formatMode === 'on_site_gam'
                   ? `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
-                      liveSiteConfig.adUnitId || '/23171577/travel_portal/hotels/results'
+                      (liveSiteConfig.adUnitId || '/23171577/travel_portal/hotels/results').replace('travel_portal', 'expedia.fr_fr')
                     )}&lineItemId=${liveSiteConfig.lineItemId || '7322921650'}&creativeId=${
                       liveSiteConfig.creativeId || '138561712827'
                     }&sz=${liveSiteConfig.sizeTargeting || '160x600'}`
