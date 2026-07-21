@@ -21,7 +21,7 @@ export function GamOnSitePreviewPane() {
 
   const lineItemId = config.lineItemId || '7322921650'
   const creativeId = config.creativeId || '138561712827'
-  const adUnitId = config.adUnitId || '/23171577/expedia.fr_fr/hotels results'
+  const adUnitId = config.adUnitId || '/23171577/expedia.fr_fr/hotels_results'
   const sizeTargeting = config.sizeTargeting || '160x600'
 
   // Detect if preview token is present on current page URL or pasted URL
@@ -235,7 +235,9 @@ export function GamOnSitePreviewPane() {
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
               <span className="text-[10px] text-muted-foreground">Quick AdUnit Presets:</span>
               {[
+                '/23171577/expedia.fr_fr/hotels_results',
                 '/23171577/expedia.fr_fr/hotels results',
+                '/23171577/expedia.fr_fr/hotels-results',
                 '/23171577/expedia.fr_fr',
                 '/23171577/homepage',
                 '/23171577/banner',
