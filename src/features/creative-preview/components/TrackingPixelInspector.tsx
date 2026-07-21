@@ -331,12 +331,15 @@ export function TrackingPixelInspector() {
     >
       <CardHeader className="py-2.5 px-4 shrink-0 flex flex-row items-center justify-between border-b">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Radio className="size-4 text-emerald-400" />
+          <Radio className="size-4 text-emerald-600 dark:text-emerald-400" />
           <span>Tracking Pixel &amp; Beacon Troubleshooting Matrix</span>
         </CardTitle>
 
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+      </CardHeader>
+
+      <CardContent className="flex-1 min-h-0 flex flex-col gap-4 py-3 overflow-y-auto">
+        <div className="flex flex-row items-center justify-between shrink-0 border-b pb-2.5">
+          <Badge className="text-[10px] font-mono bg-emerald-600 dark:bg-emerald-500 text-white font-semibold border-0">
             {extractedBeacons.length} Tracking Pixels
           </Badge>
           <Button
@@ -350,9 +353,6 @@ export function TrackingPixelInspector() {
             <span>{isPingingAll ? 'Pinging...' : 'Ping All Beacons'}</span>
           </Button>
         </div>
-      </CardHeader>
-
-      <CardContent className="flex-1 min-h-0 flex flex-col gap-4 py-3 overflow-y-auto">
         {/* Rendered Variables & Macros Matrix */}
         {(renderedSiteToURLMap || renderedTemplateVars) && (
           <div className="flex flex-col gap-4 border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 shrink-0">

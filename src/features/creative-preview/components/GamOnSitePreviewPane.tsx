@@ -318,7 +318,7 @@ export function GamOnSitePreviewPane() {
             variant="outline"
             size="sm"
             onClick={handleResetDefaults}
-            className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-semibold"
+            className="h-8 text-xs gap-1.5 border-amber-600/40 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold"
           >
             <RotateCcw className="size-3.5" />
             <span>Reset All Defaults</span>
@@ -329,7 +329,7 @@ export function GamOnSitePreviewPane() {
               variant="outline"
               size="sm"
               onClick={handleOpenTestPage}
-              className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+              className="h-8 text-xs gap-1.5 border-emerald-600/40 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 font-semibold"
             >
               <ExternalLink className="size-3.5" />
               <span>Full Test Page</span>

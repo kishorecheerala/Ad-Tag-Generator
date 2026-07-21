@@ -437,7 +437,7 @@ ${finalJs}
     <Card className="group relative flex flex-col shrink-0" style={{ height: previewHeight }}>
       <CardHeader className="py-2.5 px-4 flex flex-row items-center justify-between border-b">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          {formatMode === 'on_site_gam' && <Globe className="size-4 text-emerald-400" />}
+          {formatMode === 'on_site_gam' && <Globe className="size-4 text-emerald-600 dark:text-emerald-400" />}
           <span>
             {formatMode === 'on_site_gam'
               ? 'GAM On-Site Creative Canvas'
@@ -450,7 +450,7 @@ ${finalJs}
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[11px] gap-1 border-emerald-500/40 text-emerald-300"
+              className="h-7 text-[11px] gap-1 border-emerald-600/40 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
               onClick={() => {
                 const lineItemId = liveSiteConfig.lineItemId || '7322921650'
                 const creativeId = liveSiteConfig.creativeId || '138561712827'
