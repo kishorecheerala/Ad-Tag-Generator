@@ -39,6 +39,8 @@ export function TrackingPixelInspector() {
   const renderedSiteToURLMap = useCreativePreviewStore((s) => s.renderedSiteToURLMap)
   const renderedTemplateVars = useCreativePreviewStore((s) => s.renderedTemplateVars)
 
+  const consoleEntries = useCreativePreviewStore((s) => s.consoleEntries)
+
   const [auditorHeight, setAuditorHeight] = useState<number | null>(null)
   const [isPingingAll, setIsPingingAll] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -97,7 +99,7 @@ export function TrackingPixelInspector() {
     return resolved
   }
 
-  // 2. Extract structured beacons from JSON schema / code
+  // 2. Extract structured beacons from JSON schema / code & live runtime logs
   const extractedBeacons = useMemo(() => {
     const list: ExtractedBeacon[] = []
 
@@ -208,9 +210,34 @@ export function TrackingPixelInspector() {
       }
     }
 
+    // Extract live runtime URLs captured in console entries
+    consoleEntries.forEach((entry) => {
+      const text = entry.text || ''
+      const matches = text.match(/(https?:\/\/[^\s"'`<>]+)/g) || []
+      matches.forEach((url) => {
+        if (!existingUrls.has(url)) {
+          existingUrls.add(url)
+          let category: ExtractedBeacon['category'] = 'custom'
+          if (url.includes('gampad') || url.includes('adview') || url.includes('impression')) {
+            category = 'render'
+          } else if (url.includes('click')) {
+            category = 'click'
+          }
+          list.push({
+            id: `runtime_${list.length + 1}`,
+            name: `Live Fired Beacon (${new URL(url.split('?')[0]).hostname || 'Runtime'})`,
+            category,
+            rawUrl: url,
+            resolvedUrl: resolveMacros(url),
+            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(url)),
+          })
+        }
+      })
+    })
+
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formatMode, jsonContent, html, js, macroSubstitutions])
+  }, [formatMode, jsonContent, html, js, macroSubstitutions, consoleEntries])
 
   // 3. Perform Ping Test for a beacon URL
   const pingBeacon = async (beacon: ExtractedBeacon) => {
