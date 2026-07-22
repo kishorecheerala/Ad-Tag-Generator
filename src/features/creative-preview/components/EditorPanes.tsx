@@ -66,7 +66,7 @@ export function EditorPanes() {
                 variant="ghost"
                 className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
                 onClick={() => {
-                  setJsonContent('{\n  "schema": { "name": "creative", "version": 3 }\n}')
+                  setJsonContent('')
                   toast.success('Cleared JSON Content')
                 }}
               >
