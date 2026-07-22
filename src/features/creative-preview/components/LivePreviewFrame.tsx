@@ -58,13 +58,12 @@ export function LivePreviewFrame() {
 
     // 1. GAM On-Site Live Ad Renderer Mode
     if (formatMode === 'on_site_gam') {
-      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/23171577/travel_portal/hotels/results'
+      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/23171577/expedia.fr_fr/hotels/results'
       let adUnitId = rawAdUnit.trim().startsWith('/') ? rawAdUnit.trim() : '/' + rawAdUnit.trim()
       // If GAM URL passed only the network code (e.g. "/23171577"), expand to full ad unit path
       if (adUnitId === '/23171577' || adUnitId === '23171577') {
-        adUnitId = '/23171577/travel_portal/hotels/results'
+        adUnitId = '/23171577/expedia.fr_fr/hotels/results'
       }
-      adUnitId = adUnitId.replace('travel_portal', 'expedia.fr_fr')
 
       const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '7322921650'
       const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || '138561712827'
@@ -455,10 +454,10 @@ ${finalJs}
               onClick={() => {
                 const lineItemId = liveSiteConfig.lineItemId || '7322921650'
                 const creativeId = liveSiteConfig.creativeId || '138561712827'
-                const adUnitId = liveSiteConfig.adUnitId || '/23171577/travel_portal/hotels/results'
+                const adUnitId = liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
                 window.open(
                   `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
-                    adUnitId.replace('travel_portal', 'expedia.fr_fr')
+                    adUnitId
                   )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || '160x600'}`,
                   '_blank'
                 )
@@ -502,7 +501,7 @@ ${finalJs}
               src={
                 formatMode === 'on_site_gam'
                   ? `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
-                      (liveSiteConfig.adUnitId || '/23171577/travel_portal/hotels/results').replace('travel_portal', 'expedia.fr_fr')
+                      liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
                     )}&lineItemId=${liveSiteConfig.lineItemId || '7322921650'}&creativeId=${
                       liveSiteConfig.creativeId || '138561712827'
                     }&sz=${liveSiteConfig.sizeTargeting || '160x600'}`
