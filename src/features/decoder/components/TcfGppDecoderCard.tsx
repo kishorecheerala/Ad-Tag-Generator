@@ -14,6 +14,7 @@ import {
 } from '../lib/tcfGppParser'
 import { toast } from 'sonner'
 import { Check, Copy, FileCode, Search, ShieldCheck, Layers, ExternalLink, Globe, Sparkles, Building2, Lock, Cpu, Info } from 'lucide-react'
+import { ClearableInput } from '../../../components/shared/ClearableInput'
 
 interface TcfGppDecoderCardProps {
   initialInput?: string
@@ -127,12 +128,15 @@ export const TcfGppDecoderCard: React.FC<TcfGppDecoderCardProps> = ({ initialInp
         {/* Input Controls */}
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
-            <Input
-              value={tcfInput}
-              onChange={(e) => setTcfInput(e.target.value)}
-              placeholder="Paste TCF consent string (e.g. CQhw_6Q...) or GPP string (e.g. DBABMA~CQhw...)"
-              className="font-mono text-xs sm:text-sm text-foreground bg-background"
-            />
+            <div className="flex-1">
+              <ClearableInput
+                value={tcfInput}
+                onChange={(e) => setTcfInput(e.target.value)}
+                onClear={() => setTcfInput('')}
+                placeholder="Paste TCF consent string (e.g. CQhw_6Q...) or GPP string (e.g. DBABMA~CQhw...)"
+                className="font-mono text-xs sm:text-sm text-foreground bg-background"
+              />
+            </div>
             <Button onClick={() => handleDecode()} className="gap-1 px-5 font-semibold">
               Decode
             </Button>

@@ -146,12 +146,12 @@ export function CreativeFormatToolbar() {
             onClick={() => {
               reset()
               useCreativePreviewStore.getState().updateLiveSiteConfig({
-                adUnitId: '/23171577/expedia.fr_fr/hotels/results',
-                lineItemId: '7322921650',
-                creativeId: '138561712827',
-                sizeTargeting: '160x600',
+                adUnitId: '',
+                lineItemId: '',
+                creativeId: '',
+                sizeTargeting: '',
               })
-              toast.success('Reset all creative settings & GAM parameters to defaults!')
+              toast.success('Cleared all creative settings & parameters!')
             }}
             title="Reset All Creative Settings to Defaults"
           >

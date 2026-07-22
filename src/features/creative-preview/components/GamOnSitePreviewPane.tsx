@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Globe, Play, ExternalLink, Link2, Sparkles, Copy, Check, Monitor, RotateCcw, ShieldCheck, AlertCircle } from 'lucide-react'
 import { useCreativePreviewStore } from '../store'
+import { ClearableInput } from '@/components/shared/ClearableInput'
 import { toast } from 'sonner'
 
 export function GamOnSitePreviewPane() {
@@ -19,10 +19,10 @@ export function GamOnSitePreviewPane() {
   const [pastedUrl, setPastedUrl] = useState('')
   const [copiedAppUrl, setCopiedAppUrl] = useState(false)
 
-  const lineItemId = config.lineItemId || '7322921650'
-  const creativeId = config.creativeId || '138561712827'
-  const adUnitId = config.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
-  const sizeTargeting = config.sizeTargeting || '160x600'
+  const lineItemId = config.lineItemId || ''
+  const creativeId = config.creativeId || ''
+  const adUnitId = config.adUnitId || ''
+  const sizeTargeting = config.sizeTargeting || ''
 
   // Detect if preview token is present on current page URL or pasted URL
   const currentParams = new URLSearchParams(window.location.search)
@@ -89,29 +89,24 @@ export function GamOnSitePreviewPane() {
     toast.success('Rendering GAM On-Site creative directly inside page canvas!')
   }
 
-  // 1-Click Reset Defaults to clean, verified GAM parameters
+  // 1-Click Clear/Reset all parameters
   const handleResetDefaults = () => {
-    const defaultAdUnit = '/23171577/expedia.fr_fr/hotels/results'
-    const defaultLineItem = '7322921650'
-    const defaultCreative = '138561712827'
-    const defaultSize = '160x600'
-
     updateConfig({
-      adUnitId: defaultAdUnit,
-      lineItemId: defaultLineItem,
-      creativeId: defaultCreative,
-      sizeTargeting: defaultSize,
+      adUnitId: '',
+      lineItemId: '',
+      creativeId: '',
+      sizeTargeting: '',
     })
 
-    setMacroSubstitution('%epid!', defaultAdUnit)
-    setMacroSubstitution('%eaid!', defaultLineItem)
-    setMacroSubstitution('%ecid!', defaultCreative)
-    setSize('160x600')
+    setMacroSubstitution('%epid!', '')
+    setMacroSubstitution('%eaid!', '')
+    setMacroSubstitution('%ecid!', '')
+    setSize('responsive')
     setPastedUrl('')
     clearConsole()
     run()
 
-    toast.success('Reset all GAM On-Site Preview parameters to working defaults!')
+    toast.success('Cleared all GAM preview parameters!')
   }
 
   const handleOpenTestPage = () => {
@@ -138,7 +133,7 @@ export function GamOnSitePreviewPane() {
               className="h-6 px-2 text-[10px] gap-1 border-amber-600/40 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
             >
               <RotateCcw className="size-3" />
-              <span>Reset Defaults</span>
+              <span>Clear All Fields</span>
             </Button>
             <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
               Live Receiver Active
@@ -182,7 +177,12 @@ export function GamOnSitePreviewPane() {
 
           {/* Copyable Page URL to enter into GAM's On-site Dialog */}
           <div className="flex items-center gap-2 mt-1">
-            <Input value={currentOnSitePageUrl} readOnly className="h-8 text-xs font-mono bg-zinc-950 text-emerald-400 border-emerald-500/30" />
+            <ClearableInput
+              value={currentOnSitePageUrl}
+              readOnly
+              onClear={() => {}}
+              className="h-8 text-xs font-mono bg-zinc-950 text-emerald-400 border-emerald-500/30"
+            />
             <Button
               variant="outline"
               size="sm"
@@ -205,9 +205,10 @@ export function GamOnSitePreviewPane() {
             <span className="text-[10px] text-muted-foreground font-normal">Extracts <code>googlesitepreview</code> token &amp; parameters</span>
           </Label>
           <div className="flex items-center gap-2">
-            <Input
+            <ClearableInput
               value={pastedUrl}
               onChange={(e) => setPastedUrl(e.target.value)}
+              onClear={() => setPastedUrl('')}
               placeholder="https://mywebsite.com/creative?google_preview=...&iu=...&lineItemId=..."
               className="h-8 text-xs font-mono"
             />
@@ -225,35 +226,39 @@ export function GamOnSitePreviewPane() {
               <span>Targeted Ad Unit Path (%epid!)</span>
               <span className="text-[10px] text-muted-foreground">GAM Ad Unit Path</span>
             </Label>
-            <Input
+            <ClearableInput
               value={adUnitId}
-              onChange={(e) => updateConfig({ adUnitId: e.target.value })}
-              placeholder="/23171577/expedia.fr_fr/hotels/results"
+              onChange={(e) => {
+                updateConfig({ adUnitId: e.target.value })
+                setMacroSubstitution('%epid!', e.target.value)
+              }}
+              onClear={() => {
+                updateConfig({ adUnitId: '' })
+                setMacroSubstitution('%epid!', '')
+              }}
+              placeholder="/<Network_ID>/<ad_unit_code>"
               className="h-8 text-xs font-mono"
             />
             {/* Quick Sub-AdUnit Suggestions */}
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
               <span className="text-[10px] text-muted-foreground">Quick AdUnit Presets:</span>
               {[
-                '/23171577/expedia.fr_fr/hotels/results',
-                '/23171577/homepage',
-                '/23171577/banner',
-                '/82109981/homepage_top',
-                '/<Network ID>/<ad unit code>',
-                '/<Network ID>/<Parent ad unit code>/<Child Ad Unit Code>',
+                '/<Network ID>/<Ad Unit Code>',
+                '/<Network ID>/<Parent Ad Unit>/<Child Ad Unit>',
+                '/<Network ID>/<Section>/<Sub-section>/<Slot>',
               ].map((path) => (
                 <button
                   key={path}
                   type="button"
                   onClick={() => {
-                    const targetPath = path.includes('<ad unit code>')
-                      ? '/23171577/ad_unit_code'
-                      : path.includes('<Parent ad unit code>')
-                      ? '/23171577/parent_ad_unit/child_ad_unit'
-                      : path
+                    const targetPath = path.includes('<Child Ad Unit>')
+                      ? '/12345678/sports/leaderboard'
+                      : path.includes('<Sub-section>')
+                      ? '/12345678/news/tech/top_banner'
+                      : '/12345678/homepage_top'
                     updateConfig({ adUnitId: targetPath })
                     setMacroSubstitution('%epid!', targetPath)
-                    toast.info(`Updated ad unit path to ${targetPath}`)
+                    toast.info(`Updated ad unit path template`)
                   }}
                   className="text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700"
                 >
@@ -265,20 +270,34 @@ export function GamOnSitePreviewPane() {
 
           <div className="flex flex-col gap-1">
             <Label className="text-xs font-semibold">Line Item ID (%eaid!)</Label>
-            <Input
+            <ClearableInput
               value={lineItemId}
-              onChange={(e) => updateConfig({ lineItemId: e.target.value })}
-              placeholder="7322921650"
+              onChange={(e) => {
+                updateConfig({ lineItemId: e.target.value })
+                setMacroSubstitution('%eaid!', e.target.value)
+              }}
+              onClear={() => {
+                updateConfig({ lineItemId: '' })
+                setMacroSubstitution('%eaid!', '')
+              }}
+              placeholder="123456789"
               className="h-8 text-xs font-mono"
             />
           </div>
 
           <div className="flex flex-col gap-1">
             <Label className="text-xs font-semibold">Creative ID (%ecid!)</Label>
-            <Input
+            <ClearableInput
               value={creativeId}
-              onChange={(e) => updateConfig({ creativeId: e.target.value })}
-              placeholder="138561712827"
+              onChange={(e) => {
+                updateConfig({ creativeId: e.target.value })
+                setMacroSubstitution('%ecid!', e.target.value)
+              }}
+              onClear={() => {
+                updateConfig({ creativeId: '' })
+                setMacroSubstitution('%ecid!', '')
+              }}
+              placeholder="987654321"
               className="h-8 text-xs font-mono"
             />
           </div>
@@ -288,10 +307,11 @@ export function GamOnSitePreviewPane() {
               <span>Targeted Ad Size</span>
               <span className="text-[10px] text-muted-foreground">Must match line item / creative size</span>
             </Label>
-            <Input
+            <ClearableInput
               value={sizeTargeting}
               onChange={(e) => updateConfig({ sizeTargeting: e.target.value })}
-              placeholder="160x600"
+              onClear={() => updateConfig({ sizeTargeting: '' })}
+              placeholder="300x250"
               className="h-8 text-xs font-mono"
             />
             {/* Quick Size Helper Chips */}
@@ -324,7 +344,7 @@ export function GamOnSitePreviewPane() {
             className="h-8 text-xs gap-1.5 border-amber-600/40 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold"
           >
             <RotateCcw className="size-3.5" />
-            <span>Reset All Defaults</span>
+            <span>Clear All Fields</span>
           </Button>
 
           <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Globe, Copy, ExternalLink, ShieldCheck, Info } from 'lucide-react'
 import { useCreativePreviewStore } from '../store'
+import { ClearableInput } from '@/components/shared/ClearableInput'
 import { toast } from 'sonner'
 
 export function LiveSitePreviewModal() {
@@ -119,9 +120,10 @@ export function LiveSitePreviewModal() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border rounded-lg p-3 bg-muted/20">
             <div className="flex flex-col gap-1 sm:col-span-2">
               <Label className="text-xs font-semibold">Target Site Webpage URL</Label>
-              <Input
+              <ClearableInput
                 value={siteUrl}
                 onChange={(e) => updateConfig({ siteUrl: e.target.value })}
+                onClear={() => updateConfig({ siteUrl: '' })}
                 placeholder="https://example.com/live-article"
                 className="h-8 text-xs font-mono"
               />
@@ -129,9 +131,10 @@ export function LiveSitePreviewModal() {
 
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-semibold">Line Item ID (%eaid!)</Label>
-              <Input
+              <ClearableInput
                 value={lineItemId}
                 onChange={(e) => updateConfig({ lineItemId: e.target.value })}
+                onClear={() => updateConfig({ lineItemId: '' })}
                 placeholder="8872190"
                 className="h-8 text-xs font-mono"
               />
@@ -139,9 +142,10 @@ export function LiveSitePreviewModal() {
 
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-semibold">Creative ID (%ecid!)</Label>
-              <Input
+              <ClearableInput
                 value={creativeId}
                 onChange={(e) => updateConfig({ creativeId: e.target.value })}
+                onClear={() => updateConfig({ creativeId: '' })}
                 placeholder="44102938"
                 className="h-8 text-xs font-mono"
               />
@@ -149,9 +153,10 @@ export function LiveSitePreviewModal() {
 
             <div className="flex flex-col gap-1 sm:col-span-2">
               <Label className="text-xs font-semibold">Targeted Ad Unit Path (%epid!)</Label>
-              <Input
+              <ClearableInput
                 value={adUnitId}
                 onChange={(e) => updateConfig({ adUnitId: e.target.value })}
+                onClear={() => updateConfig({ adUnitId: '' })}
                 placeholder="/82109981/homepage_top"
                 className="h-8 text-xs font-mono"
               />
@@ -159,9 +164,10 @@ export function LiveSitePreviewModal() {
 
             <div className="flex flex-col gap-1 sm:col-span-2">
               <Label className="text-xs font-semibold">Targeted Ad Size</Label>
-              <Input
+              <ClearableInput
                 value={sizeTargeting}
                 onChange={(e) => updateConfig({ sizeTargeting: e.target.value })}
+                onClear={() => updateConfig({ sizeTargeting: '' })}
                 placeholder="300x250"
                 className="h-8 text-xs font-mono"
               />
