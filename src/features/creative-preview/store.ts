@@ -300,12 +300,12 @@ interface CreativePreviewStore {
 }
 
 export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
-  formatMode: 'json',
+  formatMode: 'on_site_gam',
   jsonContent: DEFAULT_GAM_NATIVE_JSON,
   html: DEFAULT_HTML,
   css: DEFAULT_CSS,
   js: DEFAULT_JS,
-  activePane: 'json',
+  activePane: 'html',
   size: 'responsive',
   consoleEntries: [],
   videoEventsLog: [],

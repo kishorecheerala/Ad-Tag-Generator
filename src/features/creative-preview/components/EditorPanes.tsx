@@ -57,9 +57,22 @@ export function EditorPanes() {
 
         <div className="flex items-center gap-1.5">
           {activePane === 'json' && (
-            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-emerald-400" onClick={handleFormatJson}>
-              Format JSON
-            </Button>
+            <>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-emerald-400" onClick={handleFormatJson}>
+                Format JSON
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                onClick={() => {
+                  setJsonContent('{\n  "schema": { "name": "creative", "version": 3 }\n}')
+                  toast.success('Cleared JSON Content')
+                }}
+              >
+                Clear JSON
+              </Button>
+            </>
           )}
           <Button
             size="sm"
