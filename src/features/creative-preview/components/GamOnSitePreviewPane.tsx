@@ -21,7 +21,7 @@ export function GamOnSitePreviewPane() {
 
   const lineItemId = config.lineItemId || '7322921650'
   const creativeId = config.creativeId || '138561712827'
-  const adUnitId = config.adUnitId || '/23171577/travel_portal/hotels/results'
+  const adUnitId = config.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
   const sizeTargeting = config.sizeTargeting || '160x600'
 
   // Detect if preview token is present on current page URL or pasted URL
@@ -91,7 +91,7 @@ export function GamOnSitePreviewPane() {
 
   // 1-Click Reset Defaults to clean, verified GAM parameters
   const handleResetDefaults = () => {
-    const defaultAdUnit = '/23171577/travel_portal/hotels/results'
+    const defaultAdUnit = '/23171577/expedia.fr_fr/hotels/results'
     const defaultLineItem = '7322921650'
     const defaultCreative = '138561712827'
     const defaultSize = '160x600'
@@ -228,29 +228,32 @@ export function GamOnSitePreviewPane() {
             <Input
               value={adUnitId}
               onChange={(e) => updateConfig({ adUnitId: e.target.value })}
-              placeholder="/23171577/travel_portal/hotels/results"
+              placeholder="/23171577/expedia.fr_fr/hotels/results"
               className="h-8 text-xs font-mono"
             />
             {/* Quick Sub-AdUnit Suggestions */}
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
               <span className="text-[10px] text-muted-foreground">Quick AdUnit Presets:</span>
               {[
-                '/23171577/travel_portal/hotels/results',
-                '/23171577/travel_portal/hotels_results',
-                '/23171577/travel_portal/hotels-results',
-                '/23171577/travel_portal/hotels_results_alt',
-                '/23171577/travel_portal',
+                '/23171577/expedia.fr_fr/hotels/results',
                 '/23171577/homepage',
                 '/23171577/banner',
                 '/82109981/homepage_top',
+                '/<Network ID>/<ad unit code>',
+                '/<Network ID>/<Parent ad unit code>/<Child Ad Unit Code>',
               ].map((path) => (
                 <button
                   key={path}
                   type="button"
                   onClick={() => {
-                    updateConfig({ adUnitId: path })
-                    setMacroSubstitution('%epid!', path)
-                    toast.info(`Updated ad unit path to ${path}`)
+                    const targetPath = path.includes('<ad unit code>')
+                      ? '/23171577/ad_unit_code'
+                      : path.includes('<Parent ad unit code>')
+                      ? '/23171577/parent_ad_unit/child_ad_unit'
+                      : path
+                    updateConfig({ adUnitId: targetPath })
+                    setMacroSubstitution('%epid!', targetPath)
+                    toast.info(`Updated ad unit path to ${targetPath}`)
                   }}
                   className="text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700"
                 >
