@@ -274,19 +274,40 @@ googletag.sizeMapping()
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-primary">
               <Code className="size-5" />
-              <h3 className="text-lg font-semibold text-foreground">Creative Preview Sandbox</h3>
+              <h3 className="text-lg font-semibold text-foreground">GAM On-Site &amp; Creative Preview Sandbox</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              Test raw creative code (HTML, CSS, JS) instantly inside an isolated sandbox page frame without hosting it externally.
+              Test GAM preview tokens, live on-site ad units, custom HTML/CSS/JS creatives, and VAST video tags in a high-performance interactive sandbox.
             </p>
 
-            <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2 mt-2">
-              <h4 className="text-xs font-semibold text-foreground">Key Sandbox Features</h4>
-              <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1.5">
-                <li><strong>Interactive Code Editor:</strong> Powered by CodeMirror 6 with full HTML, CSS, and Javascript syntax highlighting and autocomplete.</li>
-                <li><strong>Lazy-Loaded Panel:</strong> Optimized bundles lazy-load CodeMirror assets only when the Creative Preview tab is actively visited.</li>
-                <li><strong>Safe Sandboxing:</strong> Iframe sandbox flags (<code className="bg-muted px-0.5 rounded">allow-scripts</code>, <code className="bg-muted px-0.5 rounded">allow-popups</code>) allow Javascript to run securely while blocking main tab cookie/localStorage access.</li>
-              </ul>
+            <div className="space-y-3 mt-2">
+              <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-foreground">1. GAM On-Site Live Receiver (Default Mode)</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Generates an isolated preview canvas with a responsive (100% width) frame. Input your Ad Unit Path (<code className="bg-muted px-1 rounded">/&lt;Network_ID&gt;/&lt;Ad_Unit_Code&gt;</code>) and optional preview token parameters to test live delivery directly from Google Ad Manager servers. Includes built-in token expiration alerts.
+                </p>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-foreground">2. Instant Tracking Pixel &amp; Beacon Inspector</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Subscribed to real-time console entries (<code className="bg-muted px-1 rounded">consoleEntries</code>). When an ad renders or fires beacons (<code className="bg-muted px-1 rounded">gampad/ads</code>, <code className="bg-muted px-1 rounded">pagead/adview</code>, impression trackers), they populate instantly in the matrix without requiring a tab switch.
+                </p>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-foreground">3. Dual-Mode VAST Video Receiver</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Fetch live <strong>VAST Ad Tag URLs</strong> or paste raw <strong>VAST XML Payloads</strong>. The player extracts <code className="bg-muted px-1 rounded">&lt;MediaFile&gt;</code> video streams, <code className="bg-muted px-1 rounded">&lt;ClickThrough&gt;</code> links, and fires tracking event beacons at each playback quartile (25%, 50%, 75%, 100%, Mute, Click).
+                </p>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-foreground">4. Code Editors &amp; 1-Click Clear Actions</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Powered by CodeMirror 6 with HTML, CSS, and JS syntax highlighting. Inputs feature 1-click clear buttons (<code className="bg-muted px-1 rounded">ClearableInput</code>) and a <strong>Clear JSON</strong> header action.
+                </p>
+              </div>
             </div>
           </div>
         )
