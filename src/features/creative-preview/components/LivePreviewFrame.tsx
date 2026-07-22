@@ -58,16 +58,12 @@ export function LivePreviewFrame() {
 
     // 1. GAM On-Site Live Ad Renderer Mode
     if (formatMode === 'on_site_gam') {
-      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || '/23171577/expedia.fr_fr/hotels/results'
-      let adUnitId = rawAdUnit.trim().startsWith('/') ? rawAdUnit.trim() : '/' + rawAdUnit.trim()
-      // If GAM URL passed only the network code (e.g. "/23171577"), expand to full ad unit path
-      if (adUnitId === '/23171577' || adUnitId === '23171577') {
-        adUnitId = '/23171577/expedia.fr_fr/hotels/results'
-      }
+      const rawAdUnit = liveSiteConfig.adUnitId || macroSubstitutions['%epid!'] || ''
+      let adUnitId = rawAdUnit.trim().startsWith('/') ? rawAdUnit.trim() : rawAdUnit.trim() ? '/' + rawAdUnit.trim() : ''
 
-      const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || '7322921650'
-      const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || '138561712827'
-      const sizeTargeting = liveSiteConfig.sizeTargeting || (size === 'responsive' ? '160x600' : size)
+      const lineItemId = liveSiteConfig.lineItemId || macroSubstitutions['%eaid!'] || ''
+      const creativeId = liveSiteConfig.creativeId || macroSubstitutions['%ecid!'] || ''
+      const sizeTargeting = liveSiteConfig.sizeTargeting || (size === 'responsive' ? '300x250' : size)
 
       const parsedSize = sizeTargeting === 'fluid'
         ? "'fluid'"
@@ -452,13 +448,13 @@ ${finalJs}
               size="sm"
               className="h-7 text-[11px] gap-1 border-emerald-600/40 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
               onClick={() => {
-                const lineItemId = liveSiteConfig.lineItemId || '7322921650'
-                const creativeId = liveSiteConfig.creativeId || '138561712827'
-                const adUnitId = liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
+                const lineItemId = liveSiteConfig.lineItemId || ''
+                const creativeId = liveSiteConfig.creativeId || ''
+                const adUnitId = liveSiteConfig.adUnitId || ''
                 window.open(
                   `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
                     adUnitId
-                  )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || '160x600'}`,
+                  )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || ''}`,
                   '_blank'
                 )
               }}
@@ -501,10 +497,10 @@ ${finalJs}
               src={
                 formatMode === 'on_site_gam'
                   ? `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
-                      liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
-                    )}&lineItemId=${liveSiteConfig.lineItemId || '7322921650'}&creativeId=${
-                      liveSiteConfig.creativeId || '138561712827'
-                    }&sz=${liveSiteConfig.sizeTargeting || '160x600'}`
+                      liveSiteConfig.adUnitId || ''
+                    )}&lineItemId=${liveSiteConfig.lineItemId || ''}&creativeId=${
+                      liveSiteConfig.creativeId || ''
+                    }&sz=${liveSiteConfig.sizeTargeting || ''}`
                   : undefined
               }
               title="Creative live preview"

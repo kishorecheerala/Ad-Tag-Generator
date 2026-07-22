@@ -376,30 +376,33 @@ export function TagSettingsCard() {
               <div className="grid grid-cols-3 gap-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-[10px] text-muted-foreground font-medium font-sans">Latitude</Label>
-                  <Input
+                  <ClearableInput
                     type="text"
                     placeholder="e.g. 40.7128"
                     value={customLat}
                     onChange={(e) => handleLatChange(e.target.value)}
+                    onClear={() => handleLatChange('')}
                     className="h-8 text-xs font-mono"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-[10px] text-muted-foreground font-medium font-sans">Longitude</Label>
-                  <Input
+                  <ClearableInput
                     type="text"
                     placeholder="e.g. -74.006"
                     value={customLng}
                     onChange={(e) => setCustomLng(e.target.value)}
+                    onClear={() => setCustomLng('')}
                     className="h-8 text-xs font-mono"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-[10px] text-muted-foreground font-medium font-sans">Country Code</Label>
-                  <Input
+                  <ClearableInput
                     placeholder="e.g. US"
                     value={customCountry}
                     onChange={(e) => setCustomCountry(e.target.value)}
+                    onClear={() => setCustomCountry('')}
                     className="h-8 text-xs uppercase font-mono"
                   />
                 </div>

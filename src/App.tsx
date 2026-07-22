@@ -150,24 +150,10 @@ function App() {
       const creativeParam = searchParams.get('creativeId') || searchParams.get('creative')
       const sizeParam = searchParams.get('sz') || searchParams.get('size')
 
-      let effectiveAdUnit = useCreativePreviewStore.getState().liveSiteConfig.adUnitId || '/23171577/expedia.fr_fr/hotels/results'
+      let effectiveAdUnit = useCreativePreviewStore.getState().liveSiteConfig.adUnitId || ''
       if (adUnitParam) {
         const decoded = decodeURIComponent(adUnitParam).trim()
-        const countSlashes = (decoded.match(/\//g) || []).length
-        if (countSlashes >= 2 || (decoded.includes('/') && !decoded.startsWith('/'))) {
-          effectiveAdUnit = decoded.startsWith('/') ? decoded : '/' + decoded
-        }
-      }
-
-      // Automatically expand root network codes to full ad units
-      const cleanedPath = effectiveAdUnit.trim()
-      const normalizedPath = cleanedPath.startsWith('/') ? cleanedPath : '/' + cleanedPath
-      if (normalizedPath === '/23171577' || normalizedPath === '/23171577/') {
-        effectiveAdUnit = '/23171577/expedia.fr_fr/hotels/results'
-      } else if (normalizedPath === '/82109981' || normalizedPath === '/82109981/') {
-        effectiveAdUnit = '/82109981/homepage_top'
-      } else {
-        effectiveAdUnit = normalizedPath
+        effectiveAdUnit = decoded.startsWith('/') ? decoded : '/' + decoded
       }
 
       if (googlePreviewParam || (adUnitParam && lineItemParam)) {
@@ -175,9 +161,9 @@ function App() {
         useCreativePreviewStore.getState().setFormatMode('on_site_gam')
         useCreativePreviewStore.getState().updateLiveSiteConfig({
           adUnitId: effectiveAdUnit,
-          lineItemId: lineItemParam || '7322921650',
-          creativeId: creativeParam || '138561712827',
-          sizeTargeting: sizeParam || '160x600',
+          lineItemId: lineItemParam || '',
+          creativeId: creativeParam || '',
+          sizeTargeting: sizeParam || '',
         })
         useCreativePreviewStore.getState().run()
         toast.success('GAM On-Site Preview link detected! Rendering creative live on page...')

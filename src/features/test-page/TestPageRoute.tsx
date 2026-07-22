@@ -26,16 +26,13 @@ export function TestPageRoute() {
     const isGamPreviewMode = searchParams.get('mode') === 'gam_preview'
 
     if (hasPreview || isGamPreviewMode) {
-      const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || '/23171577/expedia.fr_fr/hotels/results'
-      let iu = rawIu.trim().startsWith('/') ? rawIu.trim() : '/' + rawIu.trim()
-      if (iu === '/23171577' || iu === '23171577') {
-        iu = '/23171577/expedia.fr_fr/hotels/results'
-      }
-      const sz = searchParams.get('sz') || searchParams.get('size') || '160x600'
-      const parsedSize = sz === 'fluid' ? "'fluid'" : sz.includes('x') ? `[${sz.split('x').join(', ')}]` : `[160, 600]`
+      const rawIu = searchParams.get('iu') || searchParams.get('adUnitId') || ''
+      let iu = rawIu.trim().startsWith('/') ? rawIu.trim() : rawIu.trim() ? '/' + rawIu.trim() : ''
+      const sz = searchParams.get('sz') || searchParams.get('size') || '300x250'
+      const parsedSize = sz === 'fluid' ? "'fluid'" : sz.includes('x') ? `[${sz.split('x').join(', ')}]` : `[300, 250]`
       
-      const lineItemId = searchParams.get('lineItemId') || '7322921650'
-      const creativeId = searchParams.get('creativeId') || '138561712827'
+      const lineItemId = searchParams.get('lineItemId') || ''
+      const creativeId = searchParams.get('creativeId') || ''
 
       const html = `<!DOCTYPE html>
 <html>
