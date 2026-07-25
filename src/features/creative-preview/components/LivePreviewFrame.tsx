@@ -30,9 +30,9 @@ export function LivePreviewFrame() {
   const size = useCreativePreviewStore((s) => s.size)
   const setSize = useCreativePreviewStore((s) => s.setSize)
   const appendConsoleEntry = useCreativePreviewStore((s) => s.appendConsoleEntry)
-  const clearConsole = useCreativePreviewStore((s) => s.clearConsole)
   const macroSubstitutions = useCreativePreviewStore((s) => s.macroSubstitutions)
   const liveSiteConfig = useCreativePreviewStore((s) => s.liveSiteConfig)
+  const activeRenderConfig = useCreativePreviewStore((s) => s.activeRenderConfig)
   const runToken = useCreativePreviewStore((s) => s.runToken)
   const searchParams = new URLSearchParams(window.location.search)
   const activeToken = searchParams.get('google_preview') || searchParams.get('googlesitepreview') || ''
@@ -175,10 +175,37 @@ export function LivePreviewFrame() {
             '&bull; <i>Check if GAM preview token expired. Re-click "On site" in GAM to generate a fresh link.</i>' +
             '</div>';
         } else {
-          infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span class="info-tag">' + (event.lineItemId || '${lineItemId}') + '</span></div>' +
-            '<div class="as-info-row"><span>Creative ID:</span><span class="info-tag">' + (event.creativeId || '${creativeId}') + '</span></div>' +
+          var renderedLid = String(event.lineItemId || '');
+          var renderedCid = String(event.creativeId || '');
+          var expectedLid = String('${lineItemId}' || '').trim();
+          var expectedCid = String('${creativeId}' || '').trim();
+
+          var lidMismatch = Boolean(expectedLid && renderedLid && expectedLid !== renderedLid);
+          var cidMismatch = Boolean(expectedCid && renderedCid && expectedCid !== renderedCid);
+          var isMismatch = lidMismatch || cidMismatch;
+
+          var lidStyle = lidMismatch
+            ? 'color:#ef4444;font-weight:bold;background:rgba(239,68,68,0.2);padding:1px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.4);'
+            : 'color:#10b981;font-family:monospace;';
+          var cidStyle = cidMismatch
+            ? 'color:#ef4444;font-weight:bold;background:rgba(239,68,68,0.2);padding:1px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.4);'
+            : 'color:#10b981;font-family:monospace;';
+
+          var warningBox = isMismatch
+            ? '<div style="margin-top:8px;padding:8px 10px;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:6px;color:#f87171;font-size:10px;line-height:1.4;">' +
+                '<div style="font-weight:bold;color:#ef4444;margin-bottom:2px;font-size:11px;">⚠️ WARNING: Input Line Item / Creative ID did NOT win the GAM auction!</div>' +
+                'GAM served a different Line Item or Creative in response.<br>' +
+                '&bull; <b>Input Line Item ID:</b> <code style="color:#fca5a5;">' + (expectedLid || 'None') + '</code> | <b>Creative ID:</b> <code style="color:#fca5a5;">' + (expectedCid || 'None') + '</code><br>' +
+                '&bull; <b>Rendered Line Item ID:</b> <code style="color:#ef4444;font-weight:bold;">' + (renderedLid || 'N/A') + '</code> | <b>Creative ID:</b> <code style="color:#ef4444;font-weight:bold;">' + (renderedCid || 'N/A') + '</code><br>' +
+                '<i>(Common causes: Expired google_preview token, Ad Unit / Size targeting mismatch, or dynamic GAM preview wrapper IDs).</i>' +
+              '</div>'
+            : '';
+
+          infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span style="' + lidStyle + '">' + (renderedLid || '${lineItemId}') + (lidMismatch ? ' ⚠️ (Input: ' + expectedLid + ')' : '') + '</span></div>' +
+            '<div class="as-info-row"><span>Creative ID:</span><span style="' + cidStyle + '">' + (renderedCid || '${creativeId}') + (cidMismatch ? ' ⚠️ (Input: ' + expectedCid + ')' : '') + '</span></div>' +
             '<div class="as-info-row"><span>Advertiser ID:</span><span>' + (event.advertiserId || 'N/A') + '</span></div>' +
-            '<div class="as-info-row"><span>Rendered Size:</span><span>' + (event.size ? event.size[0] + 'x' + event.size[1] : '${sizeTargeting}') + '</span></div>';
+            '<div class="as-info-row"><span>Rendered Size:</span><span>' + (event.size ? event.size[0] + 'x' + event.size[1] : '${sizeTargeting}') + '</span></div>' +
+            warningBox;
         }
       }
     });
@@ -381,7 +408,7 @@ ${finalJs}
 </body>
 </html>`
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formatMode, jsonContent, html, css, js, macroSubstitutions, liveSiteConfig, runToken])
+  }, [formatMode, jsonContent, html, css, js, macroSubstitutions, runToken])
 
   // Write content via contentDocument for same-origin execution
   useEffect(() => {
@@ -401,23 +428,22 @@ ${finalJs}
   }, [htmlContent, formatMode])
 
   useEffect(() => {
-    clearConsole()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [htmlContent, formatMode])
-
-  useEffect(() => {
     function onMessage(e: MessageEvent) {
-      if (e.source === iframeRef.current?.contentWindow) {
-        if (e.data?.source === 'creative-console') {
-          appendConsoleEntry({ level: e.data.level, text: e.data.args.join(' ') })
-        } else if (e.data?.source === 'creative-rendered-code' && e.data?.html) {
-          useCreativePreviewStore.getState().setHtml(e.data.html)
-          if (e.data.siteToURLMap !== undefined) {
-            useCreativePreviewStore.getState().setRenderedSiteToURLMap(e.data.siteToURLMap)
-          }
-          if (e.data.templateVars !== undefined) {
-            useCreativePreviewStore.getState().setRenderedTemplateVars(e.data.templateVars)
-          }
+      if (e.data?.source === 'creative-console') {
+        appendConsoleEntry({ level: e.data.level, text: Array.isArray(e.data.args) ? e.data.args.join(' ') : String(e.data.args || '') })
+      } else if (e.data?.source === 'creative-rendered-code' && e.data?.html) {
+        useCreativePreviewStore.getState().setHtml(e.data.html)
+        if (e.data.siteToURLMap !== undefined) {
+          useCreativePreviewStore.getState().setRenderedSiteToURLMap(e.data.siteToURLMap)
+        }
+        if (e.data.templateVars !== undefined) {
+          useCreativePreviewStore.getState().setRenderedTemplateVars(e.data.templateVars)
+        }
+        if (e.data.lineItemId || e.data.creativeId) {
+          useCreativePreviewStore.getState().updateLiveSiteConfig({
+            lineItemId: e.data.lineItemId,
+            creativeId: e.data.creativeId
+          })
         }
       }
     }
@@ -454,7 +480,9 @@ ${finalJs}
                 window.open(
                   `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
                     adUnitId
-                  )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || ''}`,
+                  )}&lineItemId=${lineItemId}&creativeId=${creativeId}&sz=${liveSiteConfig.sizeTargeting || ''}&impressionPixel=${encodeURIComponent(
+                    liveSiteConfig.impressionPixel || ''
+                  )}&clickTracker=${encodeURIComponent(liveSiteConfig.clickTracker || '')}`,
                   '_blank'
                 )
               }}
@@ -464,7 +492,16 @@ ${finalJs}
             </Button>
           )}
 
-          <Select value={size} onValueChange={(v) => setSize(v as CreativeSizePreset)}>
+          <Select
+            value={formatMode === 'on_site_gam' ? 'responsive' : size}
+            onValueChange={(v) => {
+              if (formatMode === 'on_site_gam') {
+                useCreativePreviewStore.getState().updateLiveSiteConfig({ sizeTargeting: v })
+              } else {
+                setSize(v as CreativeSizePreset)
+              }
+            }}
+          >
             <SelectTrigger className="h-7 w-[170px] text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -488,19 +525,21 @@ ${finalJs}
           <div
             className={cn(
               'bg-zinc-900 h-full rounded-lg overflow-hidden border border-zinc-800 shadow-inner',
-              (isResponsive || isFluid) && 'w-full'
+              (isResponsive || isFluid || formatMode === 'on_site_gam') && 'w-full'
             )}
-            style={{ width: isResponsive || isFluid ? '100%' : w, maxWidth: '100%' }}
+            style={{ width: isResponsive || isFluid || formatMode === 'on_site_gam' ? '100%' : w, maxWidth: '100%' }}
           >
             <iframe
               ref={iframeRef}
               src={
                 formatMode === 'on_site_gam'
                   ? `/testpage?mode=gam_preview&google_preview=${activeToken}&iu=${encodeURIComponent(
-                      liveSiteConfig.adUnitId || ''
-                    )}&lineItemId=${liveSiteConfig.lineItemId || ''}&creativeId=${
-                      liveSiteConfig.creativeId || ''
-                    }&sz=${liveSiteConfig.sizeTargeting || ''}`
+                      activeRenderConfig.adUnitId || ''
+                    )}&lineItemId=${activeRenderConfig.lineItemId || ''}&creativeId=${
+                      activeRenderConfig.creativeId || ''
+                    }&sz=${activeRenderConfig.sizeTargeting || ''}&impressionPixel=${encodeURIComponent(
+                      activeRenderConfig.impressionPixel || ''
+                    )}&clickTracker=${encodeURIComponent(activeRenderConfig.clickTracker || '')}&_t=${runToken}`
                   : undefined
               }
               title="Creative live preview"

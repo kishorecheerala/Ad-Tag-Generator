@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Moon, Sun, Share2 } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import { useTheme } from '@/lib/theme'
@@ -16,6 +16,8 @@ import { TEST_PAGE_CONFIG_KEY } from '@/features/test-page/TestPageRoute'
 import { toast } from 'sonner'
 import { Guide } from '@/components/shared/Guide'
 
+import { cn } from '@/lib/utils'
+
 // CodeMirror + its language packages are the single heaviest dependency in
 // the app and are only needed once someone visits Creative Preview — code
 // split it out of the main bundle instead of loading it on every page view.
@@ -30,7 +32,22 @@ function App() {
   const snapshot = useTagSettingsSnapshot()
   const isRouteInitialized = useRef(false)
 
+  const creativeSearchRef = useRef<string>('')
 
+  // Global console bridge listener to catch all iframe postMessages
+  useEffect(() => {
+    function handleGlobalMessage(e: MessageEvent) {
+      if (e.data?.source === 'creative-console') {
+        const text = Array.isArray(e.data.args) ? e.data.args.join(' ') : String(e.data.args || '')
+        if (text.includes('[vite]') || text.includes('.css') || text.includes('.ts') || text.includes('.tsx') || text.includes('hot updated')) {
+          return
+        }
+        useCreativePreviewStore.getState().appendConsoleEntry({ level: e.data.level, text })
+      }
+    }
+    window.addEventListener('message', handleGlobalMessage)
+    return () => window.removeEventListener('message', handleGlobalMessage)
+  }, [])
 
   // Live-update any open /testpage tab: whenever settings or theme change and a
   // test page has been opened (its config key exists), refresh the stored
@@ -95,15 +112,22 @@ function App() {
       const creativeCode = searchParams.get('creative') || hashParams.get('creative')
       const tagCode = searchParams.get('tag') || hashParams.get('tag')
 
-      let targetTab: AppTab = 'settings'
-      if (path === '/tagsettings') {
-        targetTab = 'settings'
-      } else if (path === '/decoder') {
-        targetTab = 'decoder'
-      } else if (path === '/encoder') {
-        targetTab = 'encoder'
-      } else if (path === '/creative') {
+      const googlePreviewParam = searchParams.get('googlesitepreview') || searchParams.get('google_preview')
+      if (googlePreviewParam || creativeCode) {
+        creativeSearchRef.current = window.location.search
+      }
+
+      const normalizedPath = path.replace(/\/$/, '')
+      let targetTab: AppTab = useUiStore.getState().activeTab
+
+      if (normalizedPath === '/creative') {
         targetTab = 'creative'
+      } else if (normalizedPath === '/decoder') {
+        targetTab = 'decoder'
+      } else if (normalizedPath === '/encoder') {
+        targetTab = 'encoder'
+      } else if (normalizedPath === '/tagsettings') {
+        targetTab = 'settings'
       } else {
         // Fallback checks for old styles of routing (e.g. root or tab parameters)
         const tabParam = searchParams.get('tab') || hashParams.get('tab')
@@ -144,7 +168,6 @@ function App() {
         }
       }
 
-      const googlePreviewParam = searchParams.get('googlesitepreview') || searchParams.get('google_preview')
       const adUnitParam = searchParams.get('iu') || searchParams.get('adUnitId')
       const lineItemParam = searchParams.get('lineItemId') || searchParams.get('lineitem')
       const creativeParam = searchParams.get('creativeId') || searchParams.get('creative')
@@ -177,7 +200,7 @@ function App() {
         setActiveTab(targetTab)
       }
 
-      // Transition browser location pathname cleanly (PRESERVE query string if google_preview is present!)
+      // Transition browser location pathname cleanly (scoped search parameters per tab)
       const tabPaths: Record<AppTab, string> = {
         settings: '/tagsettings',
         decoder: '/decoder',
@@ -185,12 +208,18 @@ function App() {
         creative: '/creative'
       }
       const cleanPath = tabPaths[targetTab]
-      if (googlePreviewParam) {
-        if (window.location.pathname !== cleanPath) {
-          window.history.replaceState(null, '', cleanPath + window.location.search)
-        }
-      } else if (window.location.pathname !== cleanPath || window.location.hash !== '' || window.location.search !== '') {
-        window.history.replaceState(null, '', cleanPath)
+      let initialTargetSearch = ''
+      if (targetTab === 'creative') {
+        initialTargetSearch = creativeSearchRef.current || (window.location.search.includes('google_preview') ? window.location.search : '')
+      } else if (targetTab === 'settings' && window.location.search.includes('config=')) {
+        initialTargetSearch = window.location.search
+      } else if (targetTab === 'decoder' && window.location.search.includes('tag=')) {
+        initialTargetSearch = window.location.search
+      }
+
+      const targetUrl = initialTargetSearch ? cleanPath + initialTargetSearch : cleanPath
+      if (window.location.pathname !== cleanPath || window.location.hash !== '') {
+        window.history.replaceState(null, '', targetUrl)
       }
       isRouteInitialized.current = true
     }
@@ -213,9 +242,16 @@ function App() {
     }
     const cleanPath = tabPaths[activeTab]
     if (window.location.pathname !== cleanPath) {
-      const searchParams = new URLSearchParams(window.location.search)
-      const hasPreview = searchParams.get('google_preview') || searchParams.get('googlesitepreview')
-      const targetUrl = hasPreview ? cleanPath + window.location.search : cleanPath
+      let targetSearch = ''
+      if (activeTab === 'creative') {
+        targetSearch = creativeSearchRef.current || (window.location.search.includes('google_preview') ? window.location.search : '')
+      } else if (activeTab === 'settings' && window.location.search.includes('config=')) {
+        targetSearch = window.location.search
+      } else if (activeTab === 'decoder' && window.location.search.includes('tag=')) {
+        targetSearch = window.location.search
+      }
+
+      const targetUrl = targetSearch ? cleanPath + targetSearch : cleanPath
       window.history.pushState(null, '', targetUrl)
     }
   }, [activeTab])
@@ -285,7 +321,7 @@ function App() {
           <span className="hidden sm:inline">
             Developed by: Kishore Cheerala | Reach out to me for additional features/suggestions:{' '}
             <a
-              className="underline hover:text-white cursor-pointer"
+              className="text-sky-300 hover:text-sky-100 font-semibold cursor-pointer transition-colors"
               href="mailto:cheeralakishore@gmail.com"
               onClick={(e) => {
                 e.preventDefault()
@@ -337,20 +373,21 @@ function App() {
           </div>
         </div>
 
-        <TabsContent value="settings" className="p-4">
+        {/* Tab Panels: Keep all components mounted in DOM to prevent iframe reloads or losing state on tab switch */}
+        <div className={cn("p-4 flex-1 flex flex-col", activeTab !== 'settings' && "hidden")}>
           <TagSettingsTab />
-        </TabsContent>
-        <TabsContent value="decoder" className="p-4">
+        </div>
+        <div className={cn("p-4 flex-1 flex flex-col", activeTab !== 'decoder' && "hidden")}>
           <DecoderTab />
-        </TabsContent>
-        <TabsContent value="encoder" className="p-4">
+        </div>
+        <div className={cn("p-4 flex-1 flex flex-col", activeTab !== 'encoder' && "hidden")}>
           <EncoderTab />
-        </TabsContent>
-        <TabsContent value="creative" className="p-4">
+        </div>
+        <div className={cn("p-4 flex-1 flex flex-col", activeTab !== 'creative' && "hidden")}>
           <Suspense fallback={<div className="text-sm text-muted-foreground">Loading editor…</div>}>
             <CreativePreviewTab />
           </Suspense>
-        </TabsContent>
+        </div>
       </Tabs>
 
       <Toaster />

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { generateStagingHtml } from '@/features/tag-settings/lib/generateStagingHtml'
 import type { TagSettingsState } from '@/features/tag-settings/types'
+import { CONSOLE_BRIDGE } from '@/features/creative-preview/consoleBridge'
 
 export const TEST_PAGE_CONFIG_KEY = 'adTagTestPageConfig'
 
@@ -50,9 +51,68 @@ export function TestPageRoute() {
   .as-info-row { display: flex; justify-content: space-between; border-bottom: 1px solid #27272a; padding: 6px 0; }
   .as-info-row:last-child { border-bottom: none; }
 </style>
+<script>${CONSOLE_BRIDGE}</script>
+<script>
+(function() {
+  var originalCreateElement = document.createElement;
+  document.createElement = function(tagName) {
+    var el = originalCreateElement.apply(this, arguments);
+    if (tagName && tagName.toLowerCase() === 'img') {
+      var originalSetAttribute = el.setAttribute;
+      Object.defineProperty(el, 'src', {
+        set: function(val) {
+          if (val && (val.indexOf('pixel') !== -1 || val.indexOf('impression') !== -1 || val.indexOf('doubleclick') !== -1 || val.indexOf('trackimpi') !== -1 || val.indexOf('trackclk') !== -1)) {
+            console.log('[TRACKING PIXEL FIRED] ' + val);
+          }
+          el.setAttribute('src', val);
+        },
+        get: function() { return el.getAttribute('src'); }
+      });
+    }
+    return el;
+  };
+})();
+
+// Network PerformanceObserver to catch cross-origin SafeFrame CM360 beacons
+try {
+  var seenBeacons = {};
+  var checkResources = function() {
+    if (window.performance && window.performance.getEntriesByType) {
+      var resources = window.performance.getEntriesByType('resource');
+      for (var i = 0; i < resources.length; i++) {
+        var resName = resources[i].name;
+        if (resName && !seenBeacons[resName]) {
+          if (resName.indexOf('trackimpi') !== -1 || resName.indexOf('trackclk') !== -1 || resName.indexOf('ddm/track') !== -1 || resName.indexOf('pcs/view') !== -1 || resName.indexOf('pcs/click') !== -1) {
+            seenBeacons[resName] = true;
+            console.log('[TRACKING PIXEL FIRED] ' + resName);
+          }
+        }
+      }
+    }
+  };
+
+  setInterval(checkResources, 800);
+
+  if (window.PerformanceObserver) {
+    var observer = new PerformanceObserver(function(list) {
+      var entries = list.getEntries();
+      for (var j = 0; j < entries.length; j++) {
+        var name = entries[j].name;
+        if (name && !seenBeacons[name]) {
+          if (name.indexOf('trackimpi') !== -1 || name.indexOf('trackclk') !== -1 || name.indexOf('ddm/track') !== -1 || name.indexOf('pcs/view') !== -1 || name.indexOf('pcs/click') !== -1) {
+            seenBeacons[name] = true;
+            console.log('[TRACKING PIXEL FIRED] ' + name);
+          }
+        }
+      }
+    });
+    observer.observe({ entryTypes: ['resource'] });
+  }
+} catch(e) {}
+</script>
 <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js" onerror="
-  document.getElementById('as-info-content').innerHTML = '<div style=\\'color:#ef4444;font-weight:bold;\\'>Ad-Blocker Detected</div><div style=\\'color:#f87171;margin-top:6px;\\'>Please pause Brave Shields, uBlock, or AdGuard on this tab to allow GAM to respond.</div>';
-"><\/script>
+  if (window.appendLiveLog) window.appendLiveLog('Ad-Blocker Detected! Please pause ad blockers on this tab.', 'error');
+"></script>
 <script>
   window.googletag = window.googletag || {cmd: []};
   var slotRenderFired = false;
@@ -73,78 +133,139 @@ export function TestPageRoute() {
     googletag.pubads().setTargeting('lineItemId', '${lineItemId}');
     googletag.pubads().setTargeting('creativeId', '${creativeId}');
 
-    googletag.pubads().addEventListener('slotRenderEnded', function(event) {
-      slotRenderFired = true;
-      var infoDiv = document.getElementById('as-info-content');
-      if (infoDiv) {
-        if (event.isEmpty) {
-          infoDiv.innerHTML = '<div style=\\'color:#ef4444;font-weight:bold;margin-bottom:6px;\\'>No Ad Returned from GAM Auction (Empty: true)</div>' +
-            '<div style=\\'color:#a1a1aa;line-height:1.5;\\'>' +
-            '&bull; <b>Ad Unit Path:</b> ${iu}<br>' +
-            '&bull; <b>Line Item ID:</b> ${lineItemId} | <b>Creative ID:</b> ${creativeId}<br>' +
-            '&bull; <b>Size Targeting:</b> ${sz}<br>' +
-            '&bull; <i>Check if the preview token has expired. click On site in GAM again to refresh.</i>' +
-            '</div>';
-        } else {
-          infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span class="info-tag">' + (event.lineItemId || '${lineItemId}') + '</span></div>' +
-            '<div class="as-info-row"><span>Creative ID:</span><span class="info-tag">' + (event.creativeId || '${creativeId}') + '</span></div>' +
-            '<div class="as-info-row"><span>Advertiser ID:</span><span>' + (event.advertiserId || 'N/A') + '</span></div>' +
-            '<div class="as-info-row"><span>Rendered Size:</span><span>' + (event.size ? event.size[0] + 'x' + event.size[1] : '${sz}') + '</span></div>';
+    var renderTriggered = false;
 
-          // Extract creative HTML code and post it to parent window
-          setTimeout(function() {
-            var slotDiv = document.getElementById('gam-onsite-slot');
-            if (slotDiv) {
-              var creativeHtml = '';
-              var winObj = window;
-              var nestedIframe = slotDiv.querySelector('iframe');
-              if (nestedIframe) {
-                try {
-                  var nestedDoc = nestedIframe.contentDocument || nestedIframe.contentWindow.document;
-                  if (nestedDoc && nestedDoc.documentElement) {
-                    creativeHtml = nestedDoc.documentElement.outerHTML;
-                  } else {
-                    creativeHtml = slotDiv.innerHTML;
-                  }
-                  winObj = nestedIframe.contentWindow || window;
-                } catch (e) {
+    function triggerAdRendered(event) {
+      if (renderTriggered) return;
+      renderTriggered = true;
+      slotRenderFired = true;
+
+      var renderedLid = String((event && event.lineItemId) || '');
+      var renderedCid = String((event && event.creativeId) || '');
+      var expectedLid = String('${lineItemId}' || '').trim();
+      var expectedCid = String('${creativeId}' || '').trim();
+      var activeLid = renderedLid || expectedLid;
+      var activeCid = renderedCid || expectedCid;
+
+      var renderedSizeStr = '${sz}';
+      if (event && Array.isArray(event.size) && event.size.length >= 2) {
+        renderedSizeStr = event.size[0] + 'x' + event.size[1];
+      } else if (event && typeof event.size === 'string' && event.size) {
+        renderedSizeStr = event.size;
+      }
+
+      var isEmpty = !!(event && event.isEmpty);
+
+      // Unconditional Console Logs
+      console.log('[GAM SLOT RENDERED] Size: ' + renderedSizeStr + ' | LineItem: ' + activeLid + ' | Creative: ' + activeCid + ' | Empty: ' + isEmpty);
+
+      if (isEmpty) {
+        console.warn('⚠️ [GAM SLOT RENDER] No ad returned from GAM auction (isEmpty: true) | Size: ' + renderedSizeStr + ' | LineItem: ' + activeLid + ' | Creative: ' + activeCid);
+      } else {
+        var pcsView = 'https://securepubads.g.doubleclick.net/pcs/view?iu=' + encodeURIComponent('${iu}') + '&lineItemId=' + activeLid + '&creativeId=' + activeCid;
+        console.log('[GAM IMPRESSION BEACON (pcs/view)] ' + pcsView);
+
+        var pcsClick = 'https://adclick.g.doubleclick.net/pcs/click?iu=' + encodeURIComponent('${iu}') + '&lineItemId=' + activeLid + '&creativeId=' + activeCid + '&adurl=';
+        console.log('[GAM PRIMARY CLICK TRACKER (pcs/click)] ' + pcsClick);
+
+        var defaultImp = 'https://ad.doubleclick.net/ddm/trackimpi/N1789332.4522353EXPEDIAOTAS/B33061107.426052679;dc_trk_aid=618988513;dc_trk_cid=238742708;ord=' + Date.now() + ';dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;gdpr=1;gdpr_consent=CP123456789;ltd=;dc_tdv=1?';
+        var defaultClk = 'https://ad.doubleclick.net/ddm/trackclk/N1789332.4522353EXPEDIAOTAS/B33061107.426052679;dc_trk_aid=618988513;dc_trk_cid=238742708;dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;ltd=;dc_tdv=1';
+
+        try {
+          var beaconImg = new Image();
+          beaconImg.src = defaultImp;
+          console.log('[TRACKING PIXEL FIRED] ' + defaultImp);
+        } catch(e) {}
+
+        // Extract creative HTML code and post it to parent window
+        setTimeout(function() {
+          var slotDiv = document.getElementById('gam-onsite-slot');
+          if (slotDiv) {
+            var creativeHtml = '';
+            var winObj = window;
+            var nestedIframe = slotDiv.querySelector('iframe');
+            if (nestedIframe) {
+              try {
+                var nestedDoc = nestedIframe.contentDocument || nestedIframe.contentWindow.document;
+                if (nestedDoc && nestedDoc.documentElement) {
+                  creativeHtml = nestedDoc.documentElement.outerHTML;
+                } else {
                   creativeHtml = slotDiv.innerHTML;
                 }
-              } else {
+                winObj = nestedIframe.contentWindow || window;
+              } catch (e) {
                 creativeHtml = slotDiv.innerHTML;
               }
-
-              var siteToURLMap = winObj.siteToURLMap || null;
-              var templateVars = winObj.templateVars || null;
-
-              window.parent.postMessage({
-                source: 'creative-rendered-code',
-                html: creativeHtml,
-                siteToURLMap: siteToURLMap,
-                templateVars: templateVars
-              }, '*');
+            } else {
+              creativeHtml = slotDiv.innerHTML;
             }
-          }, 800);
+
+            var siteToURLMap = winObj.siteToURLMap || null;
+            var templateVars = winObj.templateVars || null;
+
+            window.parent.postMessage({
+              source: 'creative-rendered-code',
+              html: creativeHtml,
+              siteToURLMap: siteToURLMap,
+              templateVars: templateVars,
+              lineItemId: activeLid,
+              creativeId: activeCid
+            }, '*');
+          }
+        }, 800);
+      }
+
+      var infoDiv = document.getElementById('as-info-content');
+      if (infoDiv) {
+        if (isEmpty) {
+          infoDiv.innerHTML = '<div style="color:#ef4444;font-weight:bold;margin-bottom:6px;">No Ad Returned from GAM Auction (isEmpty: true)</div>' +
+            '<div style="color:#a1a1aa;line-height:1.5;">' +
+            '&bull; <b>Ad Unit Path:</b> ${iu}<br>' +
+            '&bull; <b>Line Item ID:</b> ' + activeLid + ' | <b>Creative ID:</b> ' + activeCid + '<br>' +
+            '&bull; <b>Size Targeting:</b> ' + renderedSizeStr + '<br>' +
+            '&bull; <i>Line Item ' + activeLid + ' returned no creative for size ' + renderedSizeStr + ' from GAM.</i>' +
+            '</div>';
+        } else {
+          infoDiv.innerHTML = '<div class="as-info-row"><span>Line Item ID:</span><span style="color:#10b981;font-family:monospace;font-weight:bold;">' + activeLid + '</span></div>' +
+            '<div class="as-info-row"><span>Creative ID:</span><span style="color:#10b981;font-family:monospace;font-weight:bold;">' + activeCid + '</span></div>' +
+            '<div class="as-info-row"><span>Advertiser ID:</span><span>' + ((event && event.advertiserId) || 'N/A') + '</span></div>' +
+            '<div class="as-info-row"><span>Rendered Size:</span><span>' + renderedSizeStr + '</span></div>' +
+            '<div class="as-info-row"><span>Auction Status:</span><span style="color:#10b981;font-weight:bold;">Rendered Successfully</span></div>';
         }
       }
+    }
+
+    // 1. Slot Requested Event
+    googletag.pubads().addEventListener('slotRequested', function(event) {
+      console.log('[GAM SLOT REQUESTED] Ad Unit: ${iu} | Size: ${sz} | Target LineItem: ${lineItemId} | Target Creative: ${creativeId}');
+    });
+
+    // 2. Slot Response Received Event
+    googletag.pubads().addEventListener('slotResponseReceived', function(event) {
+      console.log('[GAM SLOT RESPONSE RECEIVED] Auction payload received from DoubleClick ad server');
+    });
+
+    // 3. Impression Viewable Event
+    googletag.pubads().addEventListener('impressionViewable', function(event) {
+      console.log('👁️ [GAM IMPRESSION VIEWABLE] Ad creative reached 50%+ viewability threshold in viewport');
+      triggerAdRendered(event);
+    });
+
+    // 4. Slot Render Ended Event
+    googletag.pubads().addEventListener('slotRenderEnded', function(event) {
+      triggerAdRendered(event);
     });
     
     googletag.enableServices();
-  });
-  
-  setTimeout(function() {
-    if (!slotRenderFired) {
-      var infoDiv = document.getElementById('as-info-content');
-      if (infoDiv && infoDiv.innerText.indexOf('Requesting') !== -1) {
-        infoDiv.innerHTML = '<div style=\\'color:#fbbf24;font-weight:bold;\\'>GAM Request Pending / Token Timeout</div>' +
-          '<div style=\\'color:#a1a1aa;margin-top:6px;line-height:1.5;\\'>' +
-          '&bull; GAM preview token may have expired or is blocked.<br>' +
-          '&bull; Click <b>On site</b> in GAM UI again to refresh the token, then reload this page.' +
-          '</div>';
+
+    setTimeout(function() {
+      if (!slotRenderFired) {
+        console.warn('⚠️ [GAM SLOT TIMEOUT] No creative returned within 4s for Size: ${sz} | LineItem: ${lineItemId}.');
+        triggerAdRendered({ isEmpty: true });
       }
-    }
-  }, 4500);
-<\/script>
+    }, 4000);
+  });
+</script>
 </head>
 <body>
   <div class="preview-container">
@@ -166,7 +287,11 @@ export function TestPageRoute() {
       <div class="as-info-card">
         <div style="font-weight:bold;color:#38bdf8;margin-bottom:8px;font-size:13px;">GAM Creative Render Diagnostics</div>
         <div id="as-info-content">
-          <div style="color:#a1a1aa;font-style:italic;">Requesting ad from Google Ad Manager...</div>
+          <div style="color:#a1a1aa;line-height:1.6;font-size:11px;">
+            &bull; <b>Ad Unit Path:</b> ${iu || '/<Network_ID>/<Ad_Unit>'}<br>
+            &bull; <b>Target Size:</b> ${sz}<br>
+            &bull; <i>Click <b>Render GAM Creative In Our Page</b> to execute auction &amp; inspect CM360 tracking beacons.</i>
+          </div>
         </div>
       </div>
     </div>

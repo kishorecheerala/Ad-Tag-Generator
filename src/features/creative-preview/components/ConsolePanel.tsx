@@ -38,7 +38,7 @@ export function ConsolePanel() {
   }
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [entries.length])
 
   const copyConsole = () => {

@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Play, Pause, Volume2, VolumeX, ExternalLink, Activity, Sparkles, Code2, Link2, RotateCcw } from 'lucide-react'
 import { useCreativePreviewStore } from '../store'
-import { ClearableInput } from '@/components/shared/ClearableInput'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -112,22 +111,56 @@ export function VideoPlayerPreview() {
     }
   }
 
-  // Fetch VAST Ad Tag URL
+  // Helper to inject GAM VAST macros into vastTagUrl
+  const injectMacroToVastUrl = (paramKey: string, defaultValue: string = '') => {
+    let currentUrl = vastTagUrl.trim()
+    if (!currentUrl) {
+      currentUrl = 'https://pubads.g.doubleclick.net/gampad/ads?env=vp&gdfp_req=1&output=vast&unviewed_position_start=1'
+    }
+
+    try {
+      const hasQuery = currentUrl.includes('?')
+      const separator = hasQuery ? '&' : '?'
+
+      // Check if parameter key already exists
+      const keyPattern = new RegExp(`([?&])${paramKey}=[^&]*`, 'i')
+      if (keyPattern.test(currentUrl)) {
+        if (defaultValue) {
+          currentUrl = currentUrl.replace(keyPattern, `$1${paramKey}=${defaultValue}`)
+        }
+      } else {
+        currentUrl += defaultValue !== '' ? `${separator}${paramKey}=${defaultValue}` : `${separator}${paramKey}`
+      }
+
+      setVastTagUrl(currentUrl)
+      toast.success(`Injected GAM VAST parameter: ${paramKey}`)
+    } catch {
+      setVastTagUrl((prev) => `${prev}${prev.includes('?') ? '&' : '?'}${paramKey}=${defaultValue}`)
+    }
+  }
+
+  // Fetch VAST Ad Tag URL with auto-resolution of dynamic macros
   const handleFetchVastTag = async () => {
     if (!vastTagUrl.trim()) {
       toast.error('Please enter a valid VAST Ad Tag URL.')
       return
     }
 
+    // Dynamic resolution for standard GAM macros
+    let resolvedUrl = vastTagUrl.trim()
+    resolvedUrl = resolvedUrl.replace(/\[timestamp\]|\[correlator\]|%%CACHEBUSTER%%/gi, String(Date.now()))
+    resolvedUrl = resolvedUrl.replace(/\[description_url\]|\[url\]|\[referrer_url\]|\[page_url\]/gi, encodeURIComponent(window.location.href))
+    resolvedUrl = resolvedUrl.replace(/\[pv\]/gi, Math.random().toString(36).substring(2, 10))
+
     try {
       toast.info('Fetching VAST Ad Tag...')
-      const res = await fetch(vastTagUrl.trim())
+      const res = await fetch(resolvedUrl)
       const text = await res.text()
       setVastXmlContent(text)
       parseVastXml(text)
     } catch {
       toast.error('Could not fetch VAST URL directly due to CORS. Processing URL as direct media file...')
-      setExtractedMediaUrl(vastTagUrl.trim())
+      setExtractedMediaUrl(resolvedUrl)
       setVastStatus('Direct Video URL Target')
     }
   }
@@ -220,10 +253,10 @@ export function VideoPlayerPreview() {
   }
 
   return (
-    <Card className="flex flex-col border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="py-2.5 px-4 bg-muted/30 border-b flex flex-row items-center justify-between">
+    <Card className="flex flex-col border border-border bg-card shadow-sm overflow-hidden w-full">
+      <CardHeader className="py-2.5 px-4 bg-muted/30 border-b flex flex-row items-center justify-between w-full">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Activity className="size-4 text-rose-500" />
+          <Activity className="size-4 text-rose-500 shrink-0" />
           <span>GAM Video Creative &amp; VAST Ad Tag Receiver</span>
         </CardTitle>
 
@@ -238,9 +271,9 @@ export function VideoPlayerPreview() {
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 flex flex-col gap-4">
+      <CardContent className="p-4 flex flex-col gap-4 w-full">
         {/* VAST Ad Tag URL & XML Input Control */}
-        <div className="flex flex-col gap-2 border rounded-lg p-3 bg-muted/20">
+        <div className="flex flex-col gap-3 border rounded-lg p-3 bg-muted/20 w-full">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold flex items-center gap-1.5">
               <Link2 className="size-3.5 text-rose-500" />
@@ -269,31 +302,80 @@ export function VideoPlayerPreview() {
           </div>
 
           {inputMode === 'url' ? (
-            <div className="flex items-center gap-2">
-              <ClearableInput
+            <div className="flex flex-col gap-2 w-full">
+              {/* Resizable VAST Tag Input Box */}
+              <Textarea
                 value={vastTagUrl}
                 onChange={(e) => setVastTagUrl(e.target.value)}
-                onClear={() => setVastTagUrl('')}
-                placeholder="https://pubads.g.doubleclick.net/gampad/ads?iu=...&output=vast..."
-                className="h-8 text-xs font-mono"
+                placeholder="https://pubads.g.doubleclick.net/gampad/ads?iu=/123456/video_slot&description_url=[description_url]&tfcd=0&npa=0&sz=640x480&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&correlator=[timestamp]"
+                className="min-h-[72px] w-full text-xs font-mono bg-background resize-y p-2.5 rounded-md border border-input focus:outline-none focus:ring-1 focus:ring-rose-500"
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleFetchVastTag}
-                className="h-8 px-3 text-xs shrink-0 gap-1 border-rose-500/40 text-rose-500 hover:bg-rose-500/10 font-semibold"
-              >
-                <Sparkles className="size-3" />
-                <span>Fetch &amp; Parse VAST Tag</span>
-              </Button>
+
+              {/* Action Bar & GAM VAST Macro Injector */}
+              <div className="flex flex-col gap-2 pt-1 border-t border-border/50">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 text-[11px] font-semibold text-rose-400">
+                    <Sparkles className="size-3" />
+                    <span>GAM VAST Macro Injector:</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {vastTagUrl && (
+                      <Button variant="ghost" size="sm" onClick={() => setVastTagUrl('')} className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground">
+                        Clear Tag
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFetchVastTag}
+                      className="h-8 px-4 text-xs shrink-0 gap-1.5 border-rose-500/40 text-rose-400 hover:bg-rose-500/10 font-semibold"
+                    >
+                      <Sparkles className="size-3.5" />
+                      <span>Fetch &amp; Parse VAST Tag</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Quick GAM VAST Macro Injection Chips (ref: https://support.google.com/admanager/answer/10678356) */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground font-mono">Quick Inject:</span>
+                  {[
+                    { label: '[timestamp]', key: 'correlator', val: '[timestamp]' },
+                    { label: '[description_url]', key: 'description_url', val: '[description_url]' },
+                    { label: '[url]', key: 'url', val: '[page_url]' },
+                    { label: 'gdpr=1', key: 'gdpr', val: '1' },
+                    { label: '[gdpr_consent]', key: 'gdpr_consent', val: '[gdpr_consent]' },
+                    { label: '[us_privacy]', key: 'us_privacy', val: '1---' },
+                    { label: '[gpp]', key: 'gpp', val: '[gpp_string]' },
+                    { label: '[addtl_consent]', key: 'addtl_consent', val: '[addtl_consent]' },
+                    { label: 'cust_params', key: 'cust_params', val: 'section%3Dsports%26pos%3Dpre-roll' },
+                    { label: 'vpa=click', key: 'vpa', val: 'click' },
+                    { label: 'vpmute=1', key: 'vpmute', val: '1' },
+                    { label: 'npa=1', key: 'npa', val: '1' },
+                    { label: 'tfcd=1', key: 'tfcd', val: '1' },
+                    { label: 'output=vast', key: 'output', val: 'vast' },
+                  ].map((m) => (
+                    <button
+                      key={m.label}
+                      type="button"
+                      onClick={() => injectMacroToVastUrl(m.key, m.val)}
+                      className="text-[10px] font-mono bg-zinc-900 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 px-2 py-0.5 rounded border border-rose-500/30 font-semibold transition-colors"
+                      title={`Inject parameter: ${m.key}=${m.val}`}
+                    >
+                      +{m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 w-full">
               <Textarea
                 value={vastXmlContent}
                 onChange={(e) => setVastXmlContent(e.target.value)}
                 placeholder="<VAST version='4.0'><Ad><InLine><MediaFiles><MediaFile>https://...</MediaFile></MediaFiles></InLine></Ad></VAST>"
-                className="h-24 text-xs font-mono bg-background"
+                className="min-h-[100px] text-xs font-mono bg-background resize-y p-2.5 rounded-md border border-input focus:outline-none focus:ring-1 focus:ring-rose-500"
               />
               <div className="flex justify-end gap-2">
                 <Button

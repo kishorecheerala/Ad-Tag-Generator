@@ -14,18 +14,19 @@ export const CONSOLE_BRIDGE = `
     var original = console[m];
     console[m] = function () {
       var args = Array.prototype.slice.call(arguments).map(stringify);
-      window.parent.postMessage({ source: 'creative-console', level: m, args: args }, '*');
+      try { if (window.parent && window.parent !== window) window.parent.postMessage({ source: 'creative-console', level: m, args: args }, '*'); } catch (e) {}
+      try { if (window.top && window.top !== window) window.top.postMessage({ source: 'creative-console', level: m, args: args }, '*'); } catch (e) {}
       original.apply(console, arguments);
     };
   });
   window.onerror = function (message, source, lineno) {
-    window.parent.postMessage({ source: 'creative-console', level: 'error', args: [message + ' (line ' + lineno + ')'] }, '*');
+    try { window.parent.postMessage({ source: 'creative-console', level: 'error', args: [message + ' (line ' + lineno + ')'] }, '*'); } catch (e) {}
     return false;
   };
   window.addEventListener('unhandledrejection', function (event) {
     var reason = event.reason;
     var text = (reason && reason.message) ? reason.message : String(reason);
-    window.parent.postMessage({ source: 'creative-console', level: 'error', args: ['Unhandled promise rejection: ' + text] }, '*');
+    try { window.parent.postMessage({ source: 'creative-console', level: 'error', args: ['Unhandled promise rejection: ' + text] }, '*'); } catch (e) {}
   });
 })();
 `

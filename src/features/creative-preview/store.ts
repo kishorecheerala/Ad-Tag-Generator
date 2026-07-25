@@ -23,24 +23,27 @@ export interface BeaconPingResult {
   message: string
 }
 
-export const DEFAULT_HTML = `<div class="ad-creative">
-  <h1>Hello Ad!</h1>
-  <p>Edit the HTML, CSS &amp; JS panes to preview a creative live.</p>
-  <button id="cta">Click Me</button>
+export const DEFAULT_HTML = `<script type="text/javascript">
+  var clickTag = "https://www.example.com";
+</script>
+<div id="banner" onclick="window.open(window.clickTag || clickTag, '_blank')">
+  <div class="content">
+    <div class="headline">HTML5 Display Creative</div>
+    <div class="subhead font-mono">clickTag Enabled</div>
+    <button class="cta-button">Click to Preview Destination</button>
+  </div>
 </div>`
 
-export const DEFAULT_CSS = `body { margin: 0; height: 100%; display: flex; align-items: center; justify-content: center; font-family: Arial, Helvetica, sans-serif; text-align: center; }
-.ad-creative { padding: 12px; }
-#cta { padding: 8px 16px; background: #1a73e8; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
-#cta:hover { background: #1558b0; }`
+export const DEFAULT_CSS = `html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+#banner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid #0ea5e9; cursor: pointer; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 16px; text-align: center; }
+.headline { font-size: 16px; font-weight: bold; margin-bottom: 4px; color: #38bdf8; }
+.subhead { font-size: 11px; opacity: 0.85; margin-bottom: 12px; }
+.cta-button { padding: 6px 14px; background: #0284c7; color: #ffffff; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; }
+.cta-button:hover { background: #0369a1; }`
 
-export const DEFAULT_JS = `var cta = document.getElementById('cta');
-if (cta) {
-  cta.addEventListener('click', function () {
-    console.log('CTA clicked!');
-  });
-}
-console.info('Creative loaded.');`
+export const DEFAULT_JS = `document.addEventListener('DOMContentLoaded', function () {
+  console.info('HTML5 Creative loaded. Active clickTag:', window.clickTag || clickTag);
+});`
 
 export const DEFAULT_GAM_NATIVE_JSON = ''
 
@@ -63,6 +66,9 @@ export interface LiveSitePreviewConfig {
   creativeId: string
   adUnitId: string
   sizeTargeting: string
+  pastedUrl?: string
+  impressionPixel?: string
+  clickTracker?: string
 }
 
 interface CreativePreviewStore {
@@ -80,6 +86,7 @@ interface CreativePreviewStore {
   macroSubstitutions: Record<string, string>
   liveSiteModalOpen: boolean
   liveSiteConfig: LiveSitePreviewConfig
+  activeRenderConfig: LiveSitePreviewConfig
   renderedSiteToURLMap: any[] | null
   renderedTemplateVars: Record<string, any> | null
 
@@ -135,11 +142,20 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
     creativeId: '',
     adUnitId: '',
     sizeTargeting: '',
+    pastedUrl: '',
+  },
+  activeRenderConfig: {
+    siteUrl: 'https://example.com/article-demo',
+    lineItemId: '',
+    creativeId: '',
+    adUnitId: '',
+    sizeTargeting: '',
+    pastedUrl: '',
   },
   renderedSiteToURLMap: null,
   renderedTemplateVars: null,
 
-  setFormatMode: (mode) => set({ formatMode: mode, activePane: mode === 'json' ? 'json' : 'html' }),
+  setFormatMode: (mode) => set({ formatMode: mode }),
   setJsonContent: (v) => set({ jsonContent: v }),
   setHtml: (v) => set({ html: v }),
   setCss: (v) => set({ css: v }),
@@ -147,24 +163,42 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
   setActivePane: (v) => set({ activePane: v }),
   setSize: (v) => set({ size: v }),
   appendConsoleEntry: (entry) =>
-    set((s) => ({ consoleEntries: [...s.consoleEntries, { ...entry, time: new Date().toLocaleTimeString() }] })),
+    set((s) => {
+      const text = entry.text || ''
+      if (text.includes('[vite]') || text.includes('.css') || text.includes('.ts') || text.includes('.tsx') || text.includes('hot update') || text.includes('hmr')) {
+        return s
+      }
+      const now = Date.now()
+      const first = s.consoleEntries[0]
+      const lastTime = (s as any)._lastLogTimestamp || 0
+      if (first && first.text === text && first.level === entry.level && now - lastTime < 250) {
+        return s
+      }
+      return {
+        _lastLogTimestamp: now,
+        consoleEntries: [{ ...entry, time: new Date().toLocaleTimeString() }, ...s.consoleEntries.slice(0, 199)],
+      } as any
+    }),
   clearConsole: () => set({ consoleEntries: [] }),
   appendVideoEvent: (event, detail) =>
     set((s) => ({
-      videoEventsLog: [{ event, detail, time: new Date().toLocaleTimeString() }, ...s.videoEventsLog.slice(0, 49)],
+      videoEventsLog: [...s.videoEventsLog.slice(-99), { event, detail, time: new Date().toLocaleTimeString() }],
     })),
   clearVideoEvents: () => set({ videoEventsLog: [] }),
   recordBeaconPing: (url, result) =>
     set((s) => ({
       beaconPingResults: {
         ...s.beaconPingResults,
-        [url]: { url, ...result, time: new Date().toLocaleTimeString() },
+        [url]: { ...result, url, time: new Date().toLocaleTimeString() },
       },
     })),
   setMacroSubstitution: (macro, value) =>
     set((s) => ({ macroSubstitutions: { ...s.macroSubstitutions, [macro]: value } })),
   setLiveSiteModalOpen: (open) => set({ liveSiteModalOpen: open }),
-  updateLiveSiteConfig: (patch) => set((s) => ({ liveSiteConfig: { ...s.liveSiteConfig, ...patch } })),
+  updateLiveSiteConfig: (patch) =>
+    set((s) => ({
+      liveSiteConfig: { ...s.liveSiteConfig, ...patch },
+    })),
   setRenderedSiteToURLMap: (v) => set({ renderedSiteToURLMap: v }),
   setRenderedTemplateVars: (v) => set({ renderedTemplateVars: v }),
 
@@ -192,11 +226,11 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
   loadHtml5Preset: () =>
     set({
       formatMode: 'html',
-      activePane: 'html',
+      size: '300x250',
       html: DEFAULT_HTML,
       css: DEFAULT_CSS,
       js: DEFAULT_JS,
-      size: '300x250',
+      macroSubstitutions: DEFAULT_MACRO_SUBSTITUTIONS,
       runToken: Date.now(),
     }),
 
@@ -216,18 +250,22 @@ export const useCreativePreviewStore = create<CreativePreviewStore>((set) => ({
     }),
 
   run: () => set((s) => ({
-    runToken: s.runToken + 1,
+    activeRenderConfig: { ...s.liveSiteConfig },
+    runToken: Date.now(),
+    consoleEntries: [],
     beaconPingResults: {},
     renderedSiteToURLMap: null,
     renderedTemplateVars: null,
-    html: s.formatMode === 'on_site_gam' ? '' : s.html
   })),
 
   hydrateCreativePreview: (patch) =>
     set((s) => ({
-      ...s,
-      ...patch,
+      formatMode: patch.formatMode ?? s.formatMode,
+      jsonContent: patch.jsonContent ?? s.jsonContent,
+      html: patch.html ?? s.html,
+      css: patch.css ?? s.css,
+      js: patch.js ?? s.js,
+      size: patch.size ?? s.size,
       runToken: Date.now(),
     })),
 }))
-

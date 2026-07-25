@@ -12,6 +12,7 @@ import {
   Send,
   ExternalLink,
   Zap,
+  Copy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ResizeHandle } from '@/components/shared/ResizeHandle'
@@ -27,6 +28,60 @@ export interface ExtractedBeacon {
   hasUnexpandedMacro: boolean
 }
 
+function cleanExtractedUrl(raw: string): string {
+  if (!raw) return ''
+  // 1. Decode JS hex escapes (\x3d -> =, \x26 -> &, \x3f -> ?)
+  let url = raw
+    .replace(/\\x3d/gi, '=')
+    .replace(/\\x26/gi, '&')
+    .replace(/\\x3f/gi, '?')
+    .replace(/\\x2f/gi, '/')
+
+  // 2. Decode HTML entities (&quot;, &amp;, etc.)
+  url = url
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+
+  // 3. Strip trailing JSON quotes/commas or array delimiters like ","Send
+  url = url.split('","')[0].split('",')[0].split('"]')[0]
+
+  // 4. Strip trailing punctuation, slashes, or quotes
+  url = url.replace(/["'`,;\\\])]+$/, '').trim()
+  return url
+}
+
+function isTrackingBeacon(url: string): boolean {
+  if (!url || !url.startsWith('http')) return false
+  const lower = url.toLowerCase()
+
+  // Exclude static UI branding assets & icons
+  if (
+    lower.includes('googlelogo') ||
+    lower.includes('x_blue.png') ||
+    lower.includes('back_blue.png') ||
+    lower.includes('abg_blue.png') ||
+    lower.includes('iconx2-000000.png')
+  ) {
+    return false
+  }
+
+  // Include valid tracking beacons, impression/click trackers & ad call endpoints
+  return (
+    lower.includes('trackimpi') ||
+    lower.includes('trackclk') ||
+    lower.includes('pcs/view') ||
+    lower.includes('pcs/click') ||
+    lower.includes('gampad') ||
+    lower.includes('pixel') ||
+    lower.includes('tracker') ||
+    lower.includes('impression') ||
+    lower.includes('beacon')
+  )
+}
+
 export function TrackingPixelInspector() {
   const formatMode = useCreativePreviewStore((s) => s.formatMode)
   const jsonContent = useCreativePreviewStore((s) => s.jsonContent)
@@ -38,6 +93,8 @@ export function TrackingPixelInspector() {
   const recordBeaconPing = useCreativePreviewStore((s) => s.recordBeaconPing)
   const renderedSiteToURLMap = useCreativePreviewStore((s) => s.renderedSiteToURLMap)
   const renderedTemplateVars = useCreativePreviewStore((s) => s.renderedTemplateVars)
+  const liveSiteConfig = useCreativePreviewStore((s) => s.liveSiteConfig)
+  const runToken = useCreativePreviewStore((s) => s.runToken)
 
   const consoleEntries = useCreativePreviewStore((s) => s.consoleEntries)
 
@@ -103,59 +160,112 @@ export function TrackingPixelInspector() {
   const extractedBeacons = useMemo(() => {
     const list: ExtractedBeacon[] = []
 
+    // GAM On-Site Preview Beacons (derived dynamically when Line Item ID / Creative ID are active)
+    if (liveSiteConfig.lineItemId || liveSiteConfig.creativeId) {
+      const adUnit = liveSiteConfig.adUnitId || ''
+      const lid = liveSiteConfig.lineItemId || ''
+      const cid = liveSiteConfig.creativeId || ''
+
+      if (lid || cid) {
+        const gamImpUrl = `https://securepubads.g.doubleclick.net/pcs/view?iu=${encodeURIComponent(adUnit)}&lineItemId=${lid}&creativeId=${cid}`
+        list.push({
+          id: 'gam_onsite_view',
+          name: 'GAM On-Site View Impression Beacon (pcs/view)',
+          category: 'render',
+          rawUrl: gamImpUrl,
+          resolvedUrl: resolveMacros(gamImpUrl),
+          hasUnexpandedMacro: false,
+        })
+
+        const gamClickUrl = `https://adclick.g.doubleclick.net/pcs/click?iu=${encodeURIComponent(adUnit)}&lineItemId=${lid}&creativeId=${cid}&adurl=`
+        list.push({
+          id: 'gam_onsite_click',
+          name: 'GAM On-Site Primary Click Tracker (pcs/click)',
+          category: 'click',
+          rawUrl: gamClickUrl,
+          resolvedUrl: resolveMacros(gamClickUrl),
+          hasUnexpandedMacro: false,
+        })
+      }
+
+      if (liveSiteConfig.impressionPixel) {
+        const impRaw = cleanExtractedUrl(liveSiteConfig.impressionPixel)
+        list.push({
+          id: 'onsite_third_party_imp',
+          name: 'CM360 3rd-Party Impression Tracker (trackimpi)',
+          category: 'render',
+          rawUrl: impRaw,
+          resolvedUrl: resolveMacros(impRaw),
+          hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(impRaw)),
+        })
+      }
+
+      if (liveSiteConfig.clickTracker) {
+        const clkRaw = cleanExtractedUrl(liveSiteConfig.clickTracker)
+        list.push({
+          id: 'onsite_third_party_click',
+          name: 'CM360 3rd-Party Click Tracker (trackclk)',
+          category: 'click',
+          rawUrl: clkRaw,
+          resolvedUrl: resolveMacros(clkRaw),
+          hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(clkRaw)),
+        })
+      }
+    }
+
     if (formatMode === 'json' || formatMode === 'on_site_gam') {
       try {
         const parsed = JSON.parse(jsonContent)
 
         // Render Beacon
         if (parsed?.beacons?.render?.url) {
-          const raw = String(parsed.beacons.render.url)
+          const raw = cleanExtractedUrl(String(parsed.beacons.render.url))
           list.push({
             id: 'render_beacon',
             name: 'View Impression Beacon (render.url)',
             category: 'render',
             rawUrl: raw,
             resolvedUrl: resolveMacros(raw),
-            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(raw)),
+            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(raw)),
           })
         }
 
         // 3rd Party Impression 1
         if (parsed?.beacons?.impressionThirdParty1?.url) {
-          const raw = String(parsed.beacons.impressionThirdParty1.url)
+          const raw = cleanExtractedUrl(String(parsed.beacons.impressionThirdParty1.url))
           list.push({
             id: 'imp_third_party_1',
             name: '3rd Party Tracker 1 (impressionThirdParty1)',
             category: 'third_party',
             rawUrl: raw,
             resolvedUrl: resolveMacros(raw),
-            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(raw)),
+            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(raw)),
           })
         }
 
         // 3rd Party Impression 2
         if (parsed?.beacons?.impressionThirdParty2?.url) {
-          const raw = String(parsed.beacons.impressionThirdParty2.url)
+          const raw = cleanExtractedUrl(String(parsed.beacons.impressionThirdParty2.url))
           list.push({
             id: 'imp_third_party_2',
             name: '3rd Party Tracker 2 (impressionThirdParty2)',
             category: 'third_party',
             rawUrl: raw,
             resolvedUrl: resolveMacros(raw),
-            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(raw)),
+            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(raw)),
           })
         }
 
         // Click Landing URL
         if (parsed?.links?.click?.url) {
-          const raw = String(parsed.links.click.url)
+          const raw = cleanExtractedUrl(String(parsed.links.click.url))
           list.push({
             id: 'click_landing',
             name: 'Primary Click Tracker (links.click.url)',
             category: 'click',
             rawUrl: raw,
             resolvedUrl: resolveMacros(raw),
-            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(raw)),
+            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(raw)),
           })
         }
 
@@ -163,7 +273,7 @@ export function TrackingPixelInspector() {
         if (Array.isArray(parsed?.links?.bundleClicks)) {
           parsed.links.bundleClicks.forEach((item: { sitePath?: string; clickThroughUrl?: string }, idx: number) => {
             if (item?.clickThroughUrl) {
-              const raw = String(item.clickThroughUrl)
+              const raw = cleanExtractedUrl(String(item.clickThroughUrl))
               const sitePath = item.sitePath ? resolveMacros(item.sitePath) : `Site ${idx + 1}`
               list.push({
                 id: `bundle_click_${idx + 1}`,
@@ -171,7 +281,7 @@ export function TrackingPixelInspector() {
                 category: 'bundle_click',
                 rawUrl: raw,
                 resolvedUrl: resolveMacros(raw),
-                hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(raw)),
+                hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(raw)),
               })
             }
           })
@@ -181,63 +291,122 @@ export function TrackingPixelInspector() {
       }
     }
 
-    // Extract any additional standard HTTP URLs found in code
-    const code = formatMode === 'json' ? jsonContent : `${html} ${js}`
+    // Extract any additional standard HTTP URLs found in code or live rendered GAM creative
+    const code = formatMode === 'json' ? jsonContent : (formatMode === 'on_site_gam' && html.includes('http')) ? html : formatMode === 'on_site_gam' ? '' : `${html} ${js}`
     const urlRegex = /(https?:\/\/[^\s"'`<>]+)/g
     let match
     const existingUrls = new Set(list.map((b) => b.rawUrl))
 
     while ((match = urlRegex.exec(code)) !== null) {
-      const url = match[0]
-      if (
-        !existingUrls.has(url) &&
-        (url.includes('pixel') ||
-          url.includes('tracker') ||
-          url.includes('adserver') ||
-          url.includes('log') ||
-          url.includes('doubleclick') ||
-          url.includes('impression'))
-      ) {
+      const rawUrl = match[0]
+      const url = cleanExtractedUrl(rawUrl)
+      if (!url || !isTrackingBeacon(url)) continue
+
+      if (!existingUrls.has(url)) {
         existingUrls.add(url)
+        let category: ExtractedBeacon['category'] = 'custom'
+        let name = `Custom Tracker (${new URL(url.split('?')[0]).hostname || 'Pixel'})`
+        if (url.includes('trackimpi') || url.includes('pcs/view') || url.includes('adview')) {
+          category = 'render'
+          name = url.includes('trackimpi')
+            ? 'CM360 Impression Tracker (trackimpi)'
+            : 'DoubleClick Impression View (pcs/view)'
+        } else if (url.includes('trackclk') || url.includes('pcs/click')) {
+          category = 'click'
+          name = url.includes('trackclk')
+            ? 'CM360 Click Tracker (trackclk)'
+            : 'DoubleClick Primary Click Tracker (pcs/click)'
+        }
+
         list.push({
           id: `custom_${list.length + 1}`,
-          name: `Custom Tracker (${new URL(url.split('?')[0]).hostname || 'Pixel'})`,
-          category: 'custom',
+          name,
+          category,
           rawUrl: url,
           resolvedUrl: resolveMacros(url),
-          hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(url)),
+          hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(url)),
         })
       }
     }
 
-    // Extract live runtime URLs captured in console entries
-    consoleEntries.forEach((entry) => {
+    // Extract live runtime URLs captured in console entries for the CURRENT ACTIVE creative render
+    let activeEntries = consoleEntries
+    const slotReqIdx = consoleEntries.findIndex((e) => e.text.includes('[GAM SLOT REQUESTED]') || e.text.includes('[GAM SLOT RENDERED]'))
+    if (slotReqIdx !== -1) {
+      // Find the previous slot request index if multiple slot renders exist in history
+      const nextSlotReqIdx = consoleEntries.findIndex((e, i) => i > slotReqIdx && (e.text.includes('[GAM SLOT REQUESTED]') || e.text.includes('[GAM SLOT RENDERED]')))
+      if (nextSlotReqIdx !== -1) {
+        activeEntries = consoleEntries.slice(0, nextSlotReqIdx)
+      }
+    }
+
+    activeEntries.forEach((entry) => {
       const text = entry.text || ''
       const matches = text.match(/(https?:\/\/[^\s"'`<>]+)/g) || []
-      matches.forEach((url) => {
+      matches.forEach((rawUrl) => {
+        const url = cleanExtractedUrl(rawUrl)
+        if (!url || !isTrackingBeacon(url)) return
+
         if (!existingUrls.has(url)) {
           existingUrls.add(url)
           let category: ExtractedBeacon['category'] = 'custom'
-          if (url.includes('gampad') || url.includes('adview') || url.includes('impression')) {
+          let name = `Live Fired Beacon (${new URL(url.split('?')[0]).hostname || 'Runtime'})`
+          if (url.includes('pcs/view') || url.includes('gampad/adview')) {
             category = 'render'
-          } else if (url.includes('click')) {
+            name = 'GAM On-Site View Impression Beacon (pcs/view)'
+          } else if (url.includes('pcs/click') || url.includes('gampad/clk')) {
             category = 'click'
+            name = 'GAM On-Site Primary Click Tracker (pcs/click)'
+          } else if (url.includes('trackimpi') || url.includes('impression')) {
+            category = 'render'
+            if (url.includes('trackimpi')) name = 'CM360 3rd-Party Impression Tracker (trackimpi)'
+          } else if (url.includes('trackclk') || url.includes('click')) {
+            category = 'click'
+            if (url.includes('trackclk')) name = 'CM360 3rd-Party Click Tracker (trackclk)'
           }
           list.push({
             id: `runtime_${list.length + 1}`,
-            name: `Live Fired Beacon (${new URL(url.split('?')[0]).hostname || 'Runtime'})`,
+            name,
             category,
             rawUrl: url,
             resolvedUrl: resolveMacros(url),
-            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!/.test(resolveMacros(url)),
+            hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(url)),
           })
+
+          // Auto-derive matching CM360 trackclk click tracker if trackimpi impression fired
+          if (url.includes('trackimpi')) {
+            const derivedClk = url
+              .replace('/ddm/trackimpi/', '/ddm/trackclk/')
+              .replace(/ord=[^;]+;?/, '')
+              .replace(/\?$/, '')
+            if (!existingUrls.has(derivedClk)) {
+              existingUrls.add(derivedClk)
+              list.push({
+                id: `derived_clk_${list.length + 1}`,
+                name: 'CM360 3rd-Party Click Tracker (trackclk)',
+                category: 'click',
+                rawUrl: derivedClk,
+                resolvedUrl: resolveMacros(derivedClk),
+                hasUnexpandedMacro: /%%|\[%|%[a-z0-9]+!|\$\{/.test(resolveMacros(derivedClk)),
+              })
+            }
+          }
         }
       })
     })
 
-    return list
+    // Sort list so Render & Click beacons always appear first!
+    const categoryOrder: Record<ExtractedBeacon['category'], number> = {
+      render: 1,
+      third_party: 2,
+      click: 3,
+      bundle_click: 4,
+      video: 5,
+      custom: 6,
+    }
+    return list.sort((a, b) => categoryOrder[a.category] - categoryOrder[b.category])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formatMode, jsonContent, html, js, macroSubstitutions, consoleEntries])
+  }, [formatMode, jsonContent, html, js, macroSubstitutions, consoleEntries, liveSiteConfig, runToken])
 
   // 3. Perform Ping Test for a beacon URL
   const pingBeacon = async (beacon: ExtractedBeacon) => {
@@ -344,6 +513,17 @@ export function TrackingPixelInspector() {
         level: 'success',
         title: 'All Tracking Pixel Macros Resolved',
         desc: 'Every extracted tracking pixel URL has fully resolved macro replacements.',
+      })
+    }
+
+    const emptyAdUrlBeacons = extractedBeacons.filter(
+      (b) => b.resolvedUrl.includes('adurl=') && (b.resolvedUrl.endsWith('adurl=') || b.resolvedUrl.includes('adurl=&') || b.resolvedUrl.includes('adurl=""'))
+    )
+    if (emptyAdUrlBeacons.length > 0) {
+      checks.push({
+        level: 'warn',
+        title: 'Empty Destination URL detected (&adurl= is empty)',
+        desc: 'Clicking this GAM tracker will redirect to http://www.google.com/gen_204?reason=EmptyAdURL. Append your target landing page URL after &adurl= (e.g. &adurl=https://www.example.com).',
       })
     }
 
@@ -480,24 +660,30 @@ export function TrackingPixelInspector() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">{beacon.name}</span>
                         <Badge
-                          variant="secondary"
+                          variant="outline"
                           className={cn(
-                            'text-[9px] px-1.5 py-0 uppercase font-mono',
-                            beacon.category === 'render' && 'bg-blue-500/20 text-blue-300',
-                            beacon.category === 'third_party' && 'bg-purple-500/20 text-purple-300',
-                            beacon.category === 'click' && 'bg-amber-500/20 text-amber-300',
-                            beacon.category === 'bundle_click' && 'bg-cyan-500/20 text-cyan-300'
+                            'text-[10px] px-2 py-0.5 uppercase font-mono font-bold border',
+                            beacon.category === 'render' && 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/80 dark:text-blue-300 dark:border-blue-700/60',
+                            beacon.category === 'click' && 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700/60',
+                            beacon.category === 'third_party' && 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-700/60',
+                            beacon.category === 'bundle_click' && 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-300 dark:border-cyan-700/60',
+                            beacon.category === 'custom' && 'bg-zinc-100 text-zinc-800 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
                           )}
                         >
                           {beacon.category}
                         </Badge>
                         {beacon.hasUnexpandedMacro ? (
-                          <Badge variant="outline" className="text-[9px] text-amber-600 dark:text-amber-400 border-amber-500/30">
-                            Unexpanded Macro
+                          <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-semibold bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700/60">
+                            ⚠ Unexpanded Macro
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[9px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-                            Macro Resolved
+                          <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-semibold bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700/60">
+                            ✓ Macro Resolved
+                          </Badge>
+                        )}
+                        {(liveSiteConfig.lineItemId || liveSiteConfig.creativeId) && (
+                          <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                            LineItem: {liveSiteConfig.lineItemId || 'N/A'} | Creative: {liveSiteConfig.creativeId || 'N/A'}
                           </Badge>
                         )}
                       </div>
@@ -525,8 +711,21 @@ export function TrackingPixelInspector() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(beacon.resolvedUrl)
+                          toast.success(`Copied ${beacon.name} URL to clipboard!`)
+                        }}
+                        className="h-7 px-2 text-[11px] gap-1 border-blue-500/30 hover:bg-blue-500/10 text-blue-300 font-medium"
+                        title="Copy tracking pixel URL"
+                      >
+                        <Copy className="size-3" />
+                        <span>Copy Pixel</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => pingBeacon(beacon)}
-                        className="h-7 px-2 text-[11px] gap-1 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-300"
+                        className="h-7 px-2 text-[11px] gap-1 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-300 font-medium"
                       >
                         <Send className="size-3" />
                         <span>Test Ping</span>

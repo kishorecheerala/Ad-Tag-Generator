@@ -416,7 +416,7 @@ googletag.sizeMapping()
           <span className="flex items-center gap-1">
             Reach out to me for additional features/suggestions:{' '}
             <a
-              className="text-primary underline hover:text-primary-foreground/95 cursor-pointer font-medium"
+              className="text-sky-500 dark:text-sky-400 hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer font-semibold transition-colors"
               href="mailto:cheeralakishore@gmail.com"
               onClick={(e) => {
                 e.preventDefault()

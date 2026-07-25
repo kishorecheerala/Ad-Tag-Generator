@@ -83,7 +83,14 @@ export function CreativeFormatToolbar() {
 
       {/* Presets & Dimensions */}
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={size} onValueChange={(v) => setSize(v as CreativeSizePreset)}>
+        <Select
+          value={size}
+          onValueChange={(v) => {
+            const newSz = v as CreativeSizePreset
+            setSize(newSz)
+            useCreativePreviewStore.getState().updateLiveSiteConfig({ sizeTargeting: newSz })
+          }}
+        >
           <SelectTrigger className="h-8 w-[190px] text-xs">
             <SelectValue placeholder="Select Ad Size" />
           </SelectTrigger>
